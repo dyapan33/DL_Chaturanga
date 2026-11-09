@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DL Chaturanga - Chess vs Stockfish Bots</title>
+    <link rel="stylesheet" href="Style.css">
+</head>
+<body>
+    <header class="TopBar">
+        <h1>♞ DL Chaturanga</h1>
+        <span class="Subtitle">Play Stockfish bots from 100 to 2700 Elo</span>
+    </header>
+
+    <main class="Layout">
+        <section class="BoardColumn">
+            <div id="BoardPanel"></div>
+            <div id="StatusPanel"></div>
+        </section>
+
+        <aside class="SideColumn">
+            <div id="BotSelector"></div>
+            <div id="MoveList"></div>
+            <div class="Controls">
+                <button id="NewGameButton" type="button">New Game</button>
+                <button id="UndoButton" type="button">Undo</button>
+            </div>
+        </aside>
+    </main>
+
+    <script src="Board.js"></script>
+    <script src="BotSelector.js"></script>
+    <script src="MoveList.js"></script>
+    <script src="Status.js"></script>
+    <script src="Main.js"></script>
+</body>
+</html>

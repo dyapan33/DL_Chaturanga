@@ -1,0 +1,219 @@
+:root {
+    --BoardLight: #f0d9b5;
+    --BoardDark: #b58863;
+    --PanelBack: #2d2a26;
+    --PanelText: #eae6df;
+    --Accent: #769656;
+    --Selected: #f6f669;
+    --LastMove: #acd15a80;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(160deg, #1e1b18 0%, #33302b 100%);
+    color: var(--PanelText);
+    min-height: 100vh;
+}
+
+.TopBar {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    padding: 18px 28px;
+}
+
+.TopBar h1 {
+    font-size: 28px;
+}
+
+.Subtitle {
+    opacity: 0.75;
+}
+
+.Layout {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    padding: 0 28px 28px;
+    align-items: flex-start;
+}
+
+.BoardColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.SideColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    width: 300px;
+}
+
+.Panel {
+    background: var(--PanelBack);
+    border-radius: 10px;
+    padding: 14px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+#BoardPanel .Grid {
+    display: grid;
+    grid-template-columns: repeat(8, 64px);
+    grid-template-rows: repeat(8, 64px);
+    border: 4px solid #1b1815;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.Square {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 46px;
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.Light {
+    background: var(--BoardLight);
+}
+
+.Dark {
+    background: var(--BoardDark);
+}
+
+.Selected {
+    outline: 4px solid var(--Selected);
+    outline-offset: -4px;
+}
+
+.LastMove {
+    background: var(--LastMove);
+}
+
+.Dot::after {
+    content: '';
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(20, 85, 20, 0.55);
+    position: absolute;
+}
+
+.CaptureHint::after {
+    content: '';
+    width: 58px;
+    height: 58px;
+    border-radius: 50%;
+    border: 5px solid rgba(205, 40, 40, 0.6);
+    position: absolute;
+}
+
+.Coord {
+    position: absolute;
+    font-size: 11px;
+    font-weight: 700;
+    bottom: 2px;
+    right: 4px;
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.WhitePiece {
+    color: #fdfdfd;
+    text-shadow: 0 0 2px #000, 0 2px 3px rgba(0, 0, 0, 0.5);
+}
+
+.BlackPiece {
+    color: #141414;
+    text-shadow: 0 0 2px #fff3;
+}
+
+#StatusPanel .Line {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+}
+
+.Badge {
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--Accent);
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.Check {
+    color: #ff6b6b;
+    font-weight: 700;
+}
+
+.Over {
+    color: #ffd166;
+    font-weight: 700;
+}
+
+.SelectorRow {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.SelectorRow label {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+select {
+    background: #1b1815;
+    color: var(--PanelText);
+    border: 1px solid #4a453e;
+    border-radius: 6px;
+    padding: 8px;
+    font-size: 14px;
+}
+
+#MoveList ol {
+    columns: 2;
+    padding-left: 22px;
+    max-height: 260px;
+    overflow-y: auto;
+    font-size: 14px;
+}
+
+.Controls {
+    display: flex;
+    gap: 10px;
+}
+
+.Controls button {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    background: var(--Accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.Controls button:hover {
+    filter: brightness(1.15);
+}
+
+.Thinking {
+    opacity: 0.6;
+    pointer-events: none;
+}
