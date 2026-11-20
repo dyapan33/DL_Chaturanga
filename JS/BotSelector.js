@@ -296,7 +296,7 @@ class BotSelectorView {
         // Creates the Create Game button that generates a room code and shareable link.
         const CreateBtn = document.createElement('button');
         CreateBtn.type = 'button';
-        CreateBtn.className = 'PrimaryButton';
+        CreateBtn.className = this.PendingJoinCode !== '' ? 'SecondaryButton' : 'PrimaryButton';
         const PlusIcon = document.createElement('i');
         PlusIcon.setAttribute('data-lucide', 'plus-circle');
         const CreateLabel = document.createElement('span');
@@ -352,6 +352,23 @@ class BotSelectorView {
         Input.value = this.PlayerName;
         Input.addEventListener('input', () => {
             this.PlayerName = Input.value;
+        });
+        Input.addEventListener('keydown', (Event) => {
+            if (Event && Event.key === 'Enter') {
+                Event.preventDefault();
+                const Name = Input.value.trim();
+                this.PlayerName = Name;
+                if (Name === '') {
+                    this.SetStatusNotice('Please enter your name.');
+                    return;
+                }
+                const CodeText = (this.JoinInput ? this.JoinInput.value : this.PendingJoinCode).trim();
+                if (CodeText !== '' && this.OnJoinRoom) {
+                    this.OnJoinRoom(CodeText, Name);
+                } else if (this.OnCreateRoom) {
+                    this.OnCreateRoom(this.SelectedColor, Name);
+                }
+            }
         });
         this.NameInput = Input;
         Row.appendChild(Label);
@@ -504,7 +521,7 @@ class BotSelectorView {
         });
         const JoinBtn = document.createElement('button');
         JoinBtn.type = 'button';
-        JoinBtn.className = 'SecondaryButton';
+        JoinBtn.className = this.PendingJoinCode !== '' ? 'PrimaryButton' : 'SecondaryButton';
         JoinBtn.textContent = 'Join';
         JoinBtn.addEventListener('click', TriggerJoin);
         JoinRow.appendChild(Input);
