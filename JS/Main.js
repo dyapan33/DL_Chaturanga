@@ -158,8 +158,9 @@ class Controller {
 
     // Enters the initial pre-game screen and checks for a ?Room= invite link in the URL.
     Start() {
-        // Reads any ?Room= invite code from the URL and prompts for player name before joining.
+        // Reads any ?Room= invite code, scrubs it from the address bar, and prompts for name.
         const UrlRoomCode = this.Network.GetRoomFromUrl();
+        this.ClearRoomQueryFromUrl();
         this.ShowPreGameSetup();
         if (UrlRoomCode !== '') {
             this.Selector.PrefillJoinCode(UrlRoomCode);
@@ -310,7 +311,6 @@ class Controller {
         this.ClearBotTimer();
         this.ResetRequestLimits();
         this.Selector.ResetMultiplayerState();
-        this.ClearRoomQueryFromUrl();
         this.Busy = false;
         this.GameStarted = true;
         this.HidePromotionPicker();

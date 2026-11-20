@@ -1,18 +1,4 @@
 {
-    "cleanUrls": true,
-    "rewrites": [
-        {
-            "source": "/",
-            "destination": "/Index.html"
-        },
-        {
-            "source": "/index.html",
-            "destination": "/Index.html"
-        },
-        {
-            "source": "/Index",
-            "destination": "/Index.html"
-        }
-    ]
+    "cleanUrls": true
 }
 

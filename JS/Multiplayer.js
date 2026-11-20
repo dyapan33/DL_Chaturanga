@@ -22,28 +22,6 @@ const ShiftEleven = 11;
 const ShiftThirteen = 13;
 const HexRadix = Eight + Eight;
 const HexPadThreshold = Eight + Eight;
-const JoinRetryMs = 1500;
-const MaxJoinRetries = 30;
-const PeerIceServers = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun.cloudflare.com:3478' },
-    {
-        urls: 'turn:openrelay.metered.ca:80',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-    },
-    {
-        urls: 'turn:openrelay.metered.ca:443',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-    },
-    {
-        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-        username: 'openrelayproject',
-        credential: 'openrelayproject'
-    }
-];
 
 // Manages encrypted multiplayer synchronization, blinded room IDs, and peer locking.
 class MultiplayerManager {
@@ -58,9 +36,6 @@ class MultiplayerManager {
         this.LastPeerSequence = Zero;
         this.ProcessedIds = {};
         this.ProcessedCount = Zero;
-        this.PendingPeerPackets = [];
-        this.JoinRetryTimerId = null;
-        this.JoinRetryCount = Zero;
         this.IsHost = false;
         this.MatchStarted = false;
         this.HostColor = 'w';
@@ -285,17 +260,14 @@ class MultiplayerManager {
         return Candidate.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(Zero, SenderIdLength);
     }
 
-    // Reads the ?Room= or #Room= parameter from the browser's current URL if present.
+    // Reads the ?Room= query parameter from the browser's current URL if present.
     GetRoomFromUrl() {
-        // Parses window.location.search, hash, or href for a Room parameter.
+        // Parses window.location.search or window.location.href for a Room parameter.
         if (!window.location) {
             return '';
         }
         if (window.location.search && window.location.search.toLowerCase().includes('room=')) {
             return this.ExtractRoomCode(window.location.search);
-        }
-        if (window.location.hash && window.location.hash.toLowerCase().includes('room=')) {
-            return this.ExtractRoomCode(window.location.hash);
         }
         if (window.location.href && window.location.href.toLowerCase().includes('room=')) {
             return this.ExtractRoomCode(window.location.href);
@@ -385,136 +357,54 @@ class MultiplayerManager {
         }
     }
 
-    // Initializes a PeerJS host endpoint using the blinded ID with STUN/TURN ICE servers.
+    // Initializes a PeerJS host endpoint using the blinded ID and enforces single-peer lock.
     OpenHostPeer(BlindedId) {
         // Skips WebRTC initialization if PeerJS is not loaded in the current environment.
         if (typeof window.Peer !== 'function') {
             return;
         }
         try {
-            this.PeerInstance = new window.Peer(PeerPrefix + BlindedId, {
-                secure: true,
-                config: { iceServers: PeerIceServers }
-            });
+            this.PeerInstance = new window.Peer(PeerPrefix + BlindedId, { secure: true });
             this.PeerInstance.on('connection', (Connection) => {
-                if (!this.PeerConnection || !this.PeerConnection.open) {
-                    this.PeerConnection = Connection;
+                if (this.MatchStarted || (this.PeerConnection && this.PeerConnection.open)) {
+                    if (Connection && Connection.close) {
+                        Connection.close();
+                    }
+                    return;
                 }
+                this.PeerConnection = Connection;
                 this.BindPeerConnection(Connection);
-            });
-            this.PeerInstance.on('disconnected', () => {
-                if (this.PeerInstance && !this.PeerInstance.destroyed && typeof this.PeerInstance.reconnect === 'function') {
-                    this.PeerInstance.reconnect();
-                }
             });
         } catch (Error) {
             this.PeerInstance = null;
         }
     }
 
-    // Connects to a PeerJS host endpoint for cross-device WebRTC multiplayer with retry.
+    // Connects to a PeerJS host endpoint for cross-device WebRTC multiplayer.
     OpenClientPeer(BlindedId) {
         // Skips WebRTC initialization if PeerJS is not loaded in the current environment.
         if (typeof window.Peer !== 'function') {
             return;
         }
         try {
-            this.PeerInstance = new window.Peer({
-                secure: true,
-                config: { iceServers: PeerIceServers }
-            });
+            this.PeerInstance = new window.Peer({ secure: true });
             this.PeerInstance.on('open', () => {
-                this.ConnectToHostPeer(BlindedId);
-                this.StartJoinRetryLoop(BlindedId);
-            });
-            this.PeerInstance.on('disconnected', () => {
-                if (this.PeerInstance && !this.PeerInstance.destroyed && typeof this.PeerInstance.reconnect === 'function') {
-                    this.PeerInstance.reconnect();
-                }
+                const Connection = this.PeerInstance.connect(PeerPrefix + BlindedId, { reliable: true });
+                this.PeerConnection = Connection;
+                this.BindPeerConnection(Connection);
             });
         } catch (Error) {
             this.PeerInstance = null;
         }
     }
 
-    // Opens a WebRTC data connection from the guest PeerInstance to the host's blinded ID.
-    ConnectToHostPeer(BlindedId) {
-        // Connects with reliable delivery and binds open/data listeners.
-        if (!this.PeerInstance || !this.PeerInstance.open) {
-            return;
-        }
-        try {
-            const Connection = this.PeerInstance.connect(PeerPrefix + BlindedId, { reliable: true });
-            this.PeerConnection = Connection;
-            this.BindPeerConnection(Connection);
-        } catch (Error) {
-            return;
-        }
-    }
-
-    // Periodically retries the WebRTC connection and JoinRequest until GameStart arrives.
-    StartJoinRetryLoop(BlindedId) {
-        // Schedules a recurring check every JoinRetryMs while waiting for match start.
-        this.ClearJoinRetryTimer();
-        this.JoinRetryCount = Zero;
-        const Step = () => {
-            this.JoinRetryTimerId = null;
-            if (this.MatchStarted || this.IsHost || !this.RoomCode || this.JoinRetryCount >= MaxJoinRetries) {
-                return;
-            }
-            this.JoinRetryCount += One;
-            if (this.PeerInstance && this.PeerInstance.disconnected && typeof this.PeerInstance.reconnect === 'function') {
-                this.PeerInstance.reconnect();
-            } else if (this.PeerInstance && this.PeerInstance.open) {
-                if (!this.PeerConnection || !this.PeerConnection.open) {
-                    this.ConnectToHostPeer(BlindedId);
-                } else {
-                    this.SendPayload({
-                        Type: 'JoinRequest',
-                        GuestName: this.LocalName
-                    });
-                }
-            }
-            this.JoinRetryTimerId = setTimeout(Step, JoinRetryMs);
-        };
-        this.JoinRetryTimerId = setTimeout(Step, JoinRetryMs);
-    }
-
-    // Cancels any active guest join retry timer.
-    ClearJoinRetryTimer() {
-        // Clears the timeout identifier if scheduled.
-        if (this.JoinRetryTimerId !== null) {
-            clearTimeout(this.JoinRetryTimerId);
-            this.JoinRetryTimerId = null;
-        }
-    }
-
-    // Flushes any encrypted packets queued before the WebRTC DataChannel finished opening.
-    FlushPendingPeerPackets(Connection) {
-        // Sends each queued envelope over the open connection and empties the queue.
-        const TargetConn = Connection || this.PeerConnection;
-        if (!TargetConn || typeof TargetConn.send !== 'function') {
-            return;
-        }
-        while (this.PendingPeerPackets.length > Zero) {
-            const Packet = this.PendingPeerPackets.shift();
-            try {
-                TargetConn.send(Packet);
-            } catch (Error) {
-                return;
-            }
-        }
-    }
-
     // Binds data and open listeners on an active PeerJS WebRTC data connection.
     BindPeerConnection(Connection) {
-        // Flushes queued packets and sends JoinRequest when connection opens.
+        // Sends encrypted JoinRequest when client connection opens and forwards received packets.
         if (!Connection || !Connection.on) {
             return;
         }
         Connection.on('open', () => {
-            this.PeerConnection = Connection;
-            this.FlushPendingPeerPackets(Connection);
             if (!this.IsHost && !this.MatchStarted) {
                 this.SendPayload({
                     Type: 'JoinRequest',
@@ -524,7 +414,7 @@ class MultiplayerManager {
         });
         Connection.on('data', (Data) => {
             if (Data) {
-                this.HandleIncomingPayload(Data, Connection);
+                this.HandleIncomingPayload(Data);
             }
         });
     }
@@ -559,24 +449,13 @@ class MultiplayerManager {
                 // Ignores storage quota errors in restricted environments.
             }
         }
-        if (this.PeerConnection && typeof this.PeerConnection.send === 'function') {
-            if (this.PeerConnection.open) {
-                this.PeerConnection.send(SealedEnvelope);
-            } else {
-                this.PendingPeerPackets.push(SealedEnvelope);
-                try {
-                    this.PeerConnection.send(SealedEnvelope);
-                } catch (Error) {
-                    // Packet remains in PendingPeerPackets to flush on open.
-                }
-            }
-        } else {
-            this.PendingPeerPackets.push(SealedEnvelope);
+        if (this.PeerConnection && this.PeerConnection.open) {
+            this.PeerConnection.send(SealedEnvelope);
         }
     }
 
     // Decrypts, authenticates, and processes an incoming packet once, enforcing peer lock.
-    HandleIncomingPayload(RawPacket, SourceConnection) {
+    HandleIncomingPayload(RawPacket) {
         // Decrypts and authenticates the sealed envelope using the room secret.
         const Payload = this.DecryptEnvelope(RawPacket);
         if (!Payload || typeof Payload.Type !== 'string' || typeof Payload.SenderId !== 'string') {
@@ -600,20 +479,25 @@ class MultiplayerManager {
         this.ProcessedIds[Payload.MessageId] = true;
         this.ProcessedCount += One;
 
-        // Enforces single-opponent peer locking once an opponent SenderId is bound.
+        // Enforces peer locking and monotonic sequence numbers once an opponent is bound.
         if (this.AuthorizedPeerId !== '' && Payload.SenderId !== this.AuthorizedPeerId) {
-            if (SourceConnection && SourceConnection.close) {
-                SourceConnection.close();
-            }
             return;
         }
-        if (SourceConnection) {
-            this.PeerConnection = SourceConnection;
+        if (typeof Payload.SequenceNumber === 'number') {
+            if (this.AuthorizedPeerId !== '' && Payload.SequenceNumber <= this.LastPeerSequence) {
+                return;
+            }
         }
 
         // Handles JoinRequest on the host by locking the guest peer and replying with GameStart.
         if (Payload.Type === 'JoinRequest' && this.IsHost) {
+            if (this.MatchStarted && this.AuthorizedPeerId !== Payload.SenderId) {
+                return;
+            }
             this.AuthorizedPeerId = Payload.SenderId;
+            if (typeof Payload.SequenceNumber === 'number') {
+                this.LastPeerSequence = Payload.SequenceNumber;
+            }
             const GuestColor = this.HostColor === 'w' ? 'b' : 'w';
             const OpponentName = this.SanitizePlayerName(Payload.GuestName) || 'Opponent';
             this.SendPayload({
@@ -636,11 +520,13 @@ class MultiplayerManager {
 
         // Handles GameStart on the guest by locking the host peer and notifying controller.
         if (Payload.Type === 'GameStart' && !this.IsHost) {
-            this.ClearJoinRetryTimer();
             if (this.MatchStarted) {
                 return;
             }
             this.AuthorizedPeerId = Payload.SenderId;
+            if (typeof Payload.SequenceNumber === 'number') {
+                this.LastPeerSequence = Payload.SequenceNumber;
+            }
             this.MatchStarted = true;
             this.AssignedColor = Payload.GuestColor === 'w' ? 'w' : 'b';
             const OpponentName = this.SanitizePlayerName(Payload.HostName) || 'Opponent';
@@ -658,6 +544,9 @@ class MultiplayerManager {
         if (!this.MatchStarted || this.AuthorizedPeerId === '' || Payload.SenderId !== this.AuthorizedPeerId) {
             return;
         }
+        if (typeof Payload.SequenceNumber === 'number') {
+            this.LastPeerSequence = Payload.SequenceNumber;
+        }
         if (this.OnEventCallback) {
             this.OnEventCallback(Payload);
         }
@@ -665,9 +554,7 @@ class MultiplayerManager {
 
     // Closes all active channels, listeners, and peer connections and scrubs storage.
     Disconnect() {
-        // Cancels retry timers, removes storage keys, and destroys Broadcast/PeerJS instances.
-        this.ClearJoinRetryTimer();
-        this.PendingPeerPackets = [];
+        // Closes BroadcastChannel, removes storage keys and listener, and destroys PeerJS.
         if (typeof localStorage !== 'undefined' && this.BlindedRoomId !== '' && typeof localStorage.removeItem === 'function') {
             try {
                 localStorage.removeItem(StorageKeyPrefix + this.BlindedRoomId);
