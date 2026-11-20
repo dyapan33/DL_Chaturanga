@@ -353,6 +353,23 @@ class BotSelectorView {
         Input.addEventListener('input', () => {
             this.PlayerName = Input.value;
         });
+        Input.addEventListener('keydown', (Event) => {
+            if (Event && Event.key === 'Enter') {
+                Event.preventDefault();
+                const Name = Input.value.trim();
+                this.PlayerName = Name;
+                if (Name === '') {
+                    this.SetStatusNotice('Please enter your name first.');
+                    return;
+                }
+                const JoinCode = this.JoinInput ? this.JoinInput.value.trim() : this.PendingJoinCode.trim();
+                if (JoinCode !== '' && this.OnJoinRoom) {
+                    this.OnJoinRoom(JoinCode, Name);
+                } else if (this.OnCreateRoom) {
+                    this.OnCreateRoom(this.SelectedColor, Name);
+                }
+            }
+        });
         this.NameInput = Input;
         Row.appendChild(Label);
         Row.appendChild(Input);
@@ -504,7 +521,7 @@ class BotSelectorView {
         });
         const JoinBtn = document.createElement('button');
         JoinBtn.type = 'button';
-        JoinBtn.className = 'SecondaryButton';
+        JoinBtn.className = this.PendingJoinCode !== '' ? 'PrimaryButton' : 'SecondaryButton';
         JoinBtn.textContent = 'Join';
         JoinBtn.addEventListener('click', TriggerJoin);
         JoinRow.appendChild(Input);
