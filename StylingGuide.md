@@ -13,6 +13,12 @@ All rules below are **mandatory** for every file in the project. These cover eve
 
 ---
 
+## Folder Structure
+
+- JavaScript files go inside the JS folder.
+- HTML files go in the workspace folder.
+- CSS files go into the CSS folder.
+
 ## Reusable Components
 
 Any app component that is used in more than one place must have its own
@@ -47,7 +53,7 @@ dedicated file (e.g. `ChatPanel.html`, `Sidebar.html`, `Settings.html`).
 - **No magic numbers:** Every numeric literal must be a named constant.
 - **No memory leaks:** All allocations must have a matching free/delete/scope-managed owner.
 - **No unnecessary decimals:** Write `123`, not `123.0`.
-- **Number endings:** numeric literals must end in `0`, `1`, `3`, `5`, `7` or `9`. These do not apply to numbers in text.
+- **Number endings:** numeric literals must end in `0`, `1`, `3`, `5`, `7` or `9`. These do not apply to numbers in text or that are actually displayed.
   (A trailing `0` is always allowed.)
 
 ---
