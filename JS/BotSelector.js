@@ -15,6 +15,17 @@ const TimesLabels = [
     '3 moves per player turn',
     '9 moves per player turn'
 ];
+const TimeControlOptions = [
+    { Key: '0_0', Seconds: Zero, Increment: Zero, Label: 'Unlimited (No Clock)' },
+    { Key: '60_0', Seconds: BulletOneMinSeconds, Increment: Zero, Label: '1 min Bullet' },
+    { Key: '60_1', Seconds: BulletOneMinSeconds, Increment: One, Label: '1 | 1 Bullet (+1s)' },
+    { Key: '180_0', Seconds: BlitzThreeMinSeconds, Increment: Zero, Label: '3 min Blitz' },
+    { Key: '180_3', Seconds: BlitzThreeMinSeconds, Increment: Three, Label: '3 | 3 Blitz (+3s)' },
+    { Key: '300_0', Seconds: BlitzFiveMinSeconds, Increment: Zero, Label: '5 min Blitz' },
+    { Key: '300_3', Seconds: BlitzFiveMinSeconds, Increment: Three, Label: '5 | 3 Blitz (+3s)' },
+    { Key: '600_0', Seconds: RapidTenMinSeconds, Increment: Zero, Label: '10 min Rapid' },
+    { Key: '600_5', Seconds: RapidTenMinSeconds, Increment: Five, Label: '10 | 5 Rapid (+5s)' }
+];
 
 // Renders the game setup panel for both Bot and Multiplayer modes.
 class BotSelectorView {
@@ -27,6 +38,7 @@ class BotSelectorView {
         this.OnStartSandbox = OnStartSandbox;
         this.Mode = 'bot';
         this.SelectedColor = 'w';
+        this.SelectedTimeKey = '0_0';
         this.PlayerName = '';
         this.PendingJoinCode = '';
         this.CreatedRoomInfo = null;
@@ -254,18 +266,21 @@ class BotSelectorView {
         return Button;
     }
 
-    // Appends the Elo, material odds, move multiplier, and Start Game button for Bot mode.
+    // Appends the Elo, material odds, move multiplier, time control, and Start Game button.
     AppendBotControls(Panel) {
-        // Creates the Elo, material odds, and move-count selector rows.
+        // Creates the Elo, material odds, move-count, and time control selector rows.
         const EloRow = this.BuildEloRow();
         const OddsRow = this.BuildOddsRow();
         const TimesRow = this.BuildTimesRow();
+        const TimeControlRow = this.BuildTimeControlRow();
         this.EloSelect = EloRow.Select;
         this.OddsSelect = OddsRow.Select;
         this.TimesSelect = TimesRow.Select;
+        this.TimeSelect = TimeControlRow.Select;
         Panel.appendChild(EloRow.Row);
         Panel.appendChild(OddsRow.Row);
         Panel.appendChild(TimesRow.Row);
+        Panel.appendChild(TimeControlRow.Row);
 
         // Creates the Start Game button with a Lucide play icon.
         const StartButton = document.createElement('button');
@@ -280,7 +295,14 @@ class BotSelectorView {
         StartButton.addEventListener('click', () => {
             const Config = this.GetSelectedConfig();
             if (this.OnStartBotGame) {
-                this.OnStartBotGame(Config.Elo, Config.OddsPieces, Config.OddsTimes, Config.PlayerColor);
+                this.OnStartBotGame(
+                    Config.Elo,
+                    Config.OddsPieces,
+                    Config.OddsTimes,
+                    Config.PlayerColor,
+                    Config.TimeSeconds,
+                    Config.IncrementSeconds
+                );
             }
         });
         Panel.appendChild(StartButton);
@@ -310,8 +332,9 @@ class BotSelectorView {
                 this.SetStatusNotice('Please enter your name before creating a game.');
                 return;
             }
+            const TimeConfig = this.GetSelectedTimeControl();
             if (this.OnCreateRoom) {
-                this.OnCreateRoom(this.SelectedColor, Name);
+                this.OnCreateRoom(this.SelectedColor, Name, TimeConfig.Seconds, TimeConfig.Increment);
             }
         });
         Box.appendChild(CreateBtn);
@@ -321,12 +344,15 @@ class BotSelectorView {
             Box.appendChild(this.BuildRoomShareBox(this.CreatedRoomInfo));
         }
 
-        // Appends the divider and the Join Game input row for entering a code or link.
+        // Appends the divider, Join Game input row, and Time Control selector.
         const Divider = document.createElement('div');
         Divider.className = 'DividerLabel';
         Divider.textContent = '— OR JOIN WITH CODE / LINK —';
         Box.appendChild(Divider);
         Box.appendChild(this.BuildJoinRow());
+        const TimeControlRow = this.BuildTimeControlRow();
+        this.TimeSelect = TimeControlRow.Select;
+        Box.appendChild(TimeControlRow.Row);
 
         // Appends any status notice text at the bottom of the multiplayer panel.
         if (this.StatusNotice) {
@@ -529,18 +555,60 @@ class BotSelectorView {
         return JoinRow;
     }
 
-    // Reads the currently selected Elo, material odds, move multiplier, and side color.
+    // Reads the currently selected time control option object.
+    GetSelectedTimeControl() {
+        // Matches SelectedTimeKey against TimeControlOptions.
+        const Key = this.TimeSelect ? this.TimeSelect.value : this.SelectedTimeKey;
+        this.SelectedTimeKey = Key;
+        for (let Index = Zero; Index < TimeControlOptions.length; Index += One) {
+            if (TimeControlOptions[Index].Key === Key) {
+                return TimeControlOptions[Index];
+            }
+        }
+        return TimeControlOptions[Zero];
+    }
+
+    // Reads the currently selected Elo, material odds, move multiplier, side, and time control.
     GetSelectedConfig() {
         // Parses the current values of the dropdown menus and side picker.
         const SelectedElo = this.EloSelect ? Number(this.EloSelect.value) : DefaultBotElo;
         const SelectedOdds = this.OddsSelect ? this.OddsSelect.value : '';
         const SelectedTimes = this.TimesSelect ? Number(this.TimesSelect.value) : One;
+        const TimeConfig = this.GetSelectedTimeControl();
         return {
             Elo: SelectedElo,
             OddsPieces: SelectedOdds,
             OddsTimes: SelectedTimes,
-            PlayerColor: this.SelectedColor
+            PlayerColor: this.SelectedColor,
+            TimeSeconds: TimeConfig.Seconds,
+            IncrementSeconds: TimeConfig.Increment
         };
+    }
+
+    // Constructs the chess clock time control dropdown row.
+    BuildTimeControlRow() {
+        // Creates the row container, label, and time control select element.
+        const Row = document.createElement('div');
+        Row.className = 'SelectorRow';
+        const Label = document.createElement('label');
+        Label.textContent = 'Time control (clock):';
+        const Select = document.createElement('select');
+        for (let Index = Zero; Index < TimeControlOptions.length; Index += One) {
+            const Item = TimeControlOptions[Index];
+            const Option = document.createElement('option');
+            Option.value = Item.Key;
+            Option.textContent = Item.Label;
+            if (Item.Key === this.SelectedTimeKey) {
+                Option.selected = true;
+            }
+            Select.appendChild(Option);
+        }
+        Select.addEventListener('change', () => {
+            this.SelectedTimeKey = Select.value;
+        });
+        Row.appendChild(Label);
+        Row.appendChild(Select);
+        return { Row: Row, Select: Select };
     }
 
     // Constructs the bot selection dropdown row from Ella (1 Elo) to Chronos (2700 Elo).

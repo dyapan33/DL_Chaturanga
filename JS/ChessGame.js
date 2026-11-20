@@ -14,6 +14,15 @@ const NegativeOne = -1;
 const FiftyMoveLimit = 100;
 const DrawAcceptMargin = 350;
 const DefaultBotElo = 1000;
+const SixtySeconds = 60;
+const BulletOneMinSeconds = 60;
+const BlitzThreeMinSeconds = 180;
+const BlitzFiveMinSeconds = 300;
+const RapidTenMinSeconds = 600;
+const PawnPoints = One;
+const MinorPiecePoints = Three;
+const RookPoints = Five;
+const QueenPoints = Nine;
 const EllaBotElo = One;
 const EllaBotName = 'Ella';
 const BotFirstElo = 100;
@@ -111,6 +120,7 @@ class ChessGame {
         this.BlackKingSide = true;
         this.BlackQueenSide = true;
         this.History = [];
+        this.SanHistory = [];
         this.Snapshots = [];
         this.Frames = [];
         this.PositionCounts = {};
@@ -258,6 +268,9 @@ class ChessGame {
             IsMultiplayer: this.IsMultiplayer,
             IsSandbox: this.IsSandbox,
             History: this.History.slice(),
+            SanHistory: this.SanHistory.slice(),
+            Pgn: this.GeneratePgn(),
+            Material: this.GetMaterialSummary(),
             Frames: this.Frames.slice(),
             LegalMoves: LegalMoves,
             InCheck: InCheck,
@@ -299,6 +312,7 @@ class ChessGame {
             BlackKingSide: this.BlackKingSide,
             BlackQueenSide: this.BlackQueenSide,
             History: this.History.slice(),
+            SanHistory: this.SanHistory.slice(),
             Frames: this.Frames.slice(),
             PositionCounts: CopiedCounts,
             TimesTaken: this.TimesTaken,
@@ -330,6 +344,7 @@ class ChessGame {
         this.BlackKingSide = Saved.BlackKingSide;
         this.BlackQueenSide = Saved.BlackQueenSide;
         this.History = Saved.History;
+        this.SanHistory = Saved.SanHistory ? Saved.SanHistory : Saved.History.slice();
         this.Frames = Saved.Frames;
         this.PositionCounts = Saved.PositionCounts;
         this.TimesTaken = Saved.TimesTaken;
@@ -422,6 +437,258 @@ class ChessGame {
             this.Result = `You resigned. ${BotName} wins!`;
         }
         return true;
+    }
+
+    // Ends the game when FlaggedColor runs out of time under FIDE Article 6.9.
+    Timeout(FlaggedColor) {
+        // Ignores timeout if the game has already finished.
+        if (this.GameOver) {
+            return false;
+        }
+        this.GameOver = true;
+        const LoserIsWhite = (FlaggedColor || 'w') === 'w';
+        const OpponentIsWhite = !LoserIsWhite;
+
+        // Declares a draw under FIDE Article 6.9 if the opponent lacks mating material.
+        if (!this.SideHasMatingMaterial(OpponentIsWhite)) {
+            this.Result = 'Draw on time (insufficient mating material)!';
+            return true;
+        }
+
+        // Awards a win on time to the opponent with sufficient mating material.
+        if (this.IsMultiplayer || this.IsSandbox) {
+            this.Result = LoserIsWhite ? 'Black wins on time!' : 'White wins on time!';
+        } else {
+            const BotName = GetBotName(this.BotElo);
+            const PlayerLost = (LoserIsWhite ? 'w' : 'b') === this.PlayerColor;
+            this.Result = PlayerLost ? `${BotName} wins on time!` : 'You win on time!';
+        }
+        return true;
+    }
+
+    // Checks whether the specified side has enough material to deliver checkmate (FIDE Article 6.9).
+    SideHasMatingMaterial(ForWhite) {
+        // Counts pawns, rooks, queens, and minor pieces belonging to ForWhite.
+        let MinorCount = Zero;
+        for (let Row = Zero; Row < Eight; Row += One) {
+            for (let Col = Zero; Col < Eight; Col += One) {
+                const Piece = this.Board[Row][Col];
+                if (Piece === '' || this.IsWhitePiece(Piece) !== ForWhite) {
+                    continue;
+                }
+                const Upper = Piece.toUpperCase();
+                if (Upper === 'P' || Upper === 'Q' || Upper === 'R') {
+                    return true;
+                }
+                if (Upper === 'B' || Upper === 'N') {
+                    MinorCount += One;
+                }
+            }
+        }
+        return MinorCount >= Two;
+    }
+
+    // Computes captured pieces for both sides and the current material advantage in points.
+    GetMaterialSummary() {
+        // Tallies remaining pieces for White and Black on the current board.
+        const StartCounts = { Q: One, R: Two, B: Two, N: Two, P: Eight };
+        const PointValues = { Q: QueenPoints, R: RookPoints, B: MinorPiecePoints, N: MinorPiecePoints, P: PawnPoints };
+        const WhiteFound = { Q: Zero, R: Zero, B: Zero, N: Zero, P: Zero };
+        const BlackFound = { Q: Zero, R: Zero, B: Zero, N: Zero, P: Zero };
+        let WhitePoints = Zero;
+        let BlackPoints = Zero;
+        for (let Row = Zero; Row < Eight; Row += One) {
+            for (let Col = Zero; Col < Eight; Col += One) {
+                const Piece = this.Board[Row][Col];
+                if (Piece === '' || Piece.toUpperCase() === 'K') {
+                    continue;
+                }
+                const Upper = Piece.toUpperCase();
+                const Value = PointValues[Upper] || Zero;
+                if (Piece === Upper) {
+                    WhiteFound[Upper] += One;
+                    WhitePoints += Value;
+                } else {
+                    BlackFound[Upper] += One;
+                    BlackPoints += Value;
+                }
+            }
+        }
+
+        // Builds ordered arrays of captured pieces for White (captured Black pieces) and Black.
+        const Order = ['Q', 'R', 'B', 'N', 'P'];
+        const CapturedByWhite = [];
+        const CapturedByBlack = [];
+        for (let Index = Zero; Index < Order.length; Index += One) {
+            const Key = Order[Index];
+            const MissingBlack = Math.max(Zero, StartCounts[Key] - BlackFound[Key]);
+            for (let Count = Zero; Count < MissingBlack; Count += One) {
+                CapturedByWhite.push(Key.toLowerCase());
+            }
+            const MissingWhite = Math.max(Zero, StartCounts[Key] - WhiteFound[Key]);
+            for (let Count = Zero; Count < MissingWhite; Count += One) {
+                CapturedByBlack.push(Key);
+            }
+        }
+        return {
+            CapturedByWhite: CapturedByWhite,
+            CapturedByBlack: CapturedByBlack,
+            WhiteAdvantage: WhitePoints - BlackPoints
+        };
+    }
+
+    // Formats a PGN move text string from the recorded Standard Algebraic Notation history.
+    GeneratePgn() {
+        // Pairs consecutive White and Black SAN moves into numbered PGN tokens.
+        const Tokens = [];
+        for (let Index = Zero; Index < this.SanHistory.length; Index += Two) {
+            const MoveNum = Math.floor(Index / Two) + One;
+            let Pair = `${MoveNum}. ${this.SanHistory[Index]}`;
+            if (Index + One < this.SanHistory.length) {
+                Pair += ` ${this.SanHistory[Index + One]}`;
+            }
+            Tokens.push(Pair);
+        }
+        return Tokens.join(' ');
+    }
+
+    // Loads a custom board state from a FEN string and records an undo snapshot.
+    LoadFen(FenString) {
+        // Validates the FEN placement field and ensures both kings are present.
+        const Trimmed = String(FenString || '').trim();
+        if (Trimmed === '') {
+            return false;
+        }
+        const Parts = Trimmed.split(/\s+/);
+        const Ranks = Parts[Zero].split('/');
+        if (Ranks.length !== Eight) {
+            return false;
+        }
+        const NewBoard = [];
+        let HasWhiteKing = false;
+        let HasBlackKing = false;
+        for (let Row = Zero; Row < Eight; Row += One) {
+            const RankText = Ranks[Row];
+            const RowCells = [];
+            for (let Index = Zero; Index < RankText.length; Index += One) {
+                const Char = RankText[Index];
+                if (Char >= '1' && Char <= '8') {
+                    const EmptyLen = Number(Char);
+                    for (let Step = Zero; Step < EmptyLen; Step += One) {
+                        RowCells.push('');
+                    }
+                } else if ('kqrbnpKQRBNP'.includes(Char)) {
+                    if (Char === 'K') {
+                        HasWhiteKing = true;
+                    }
+                    if (Char === 'k') {
+                        HasBlackKing = true;
+                    }
+                    RowCells.push(Char);
+                } else {
+                    return false;
+                }
+            }
+            if (RowCells.length !== Eight) {
+                return false;
+            }
+            NewBoard.push(RowCells);
+        }
+        if (!HasWhiteKing || !HasBlackKing) {
+            return false;
+        }
+
+        // Applies the parsed board, turn, castling rights, and en passant square.
+        this.SaveSnapshot();
+        this.Board = NewBoard;
+        this.WhiteTurn = (Parts[One] || 'w') !== 'b';
+        const CastlingField = Parts[Two] || '-';
+        this.WhiteKingSide = CastlingField.includes('K');
+        this.WhiteQueenSide = CastlingField.includes('Q');
+        this.BlackKingSide = CastlingField.includes('k');
+        this.BlackQueenSide = CastlingField.includes('q');
+        this.UpdateCastlingFlagsFromBoard();
+        const EpField = Parts[Three] || '-';
+        if (EpField !== '-' && EpField.length === Two) {
+            this.EnPassantCol = FileLetters.indexOf(EpField[Zero]);
+            this.EnPassantRow = Eight - Number(EpField[One]);
+        } else {
+            this.EnPassantRow = NegativeOne;
+            this.EnPassantCol = NegativeOne;
+        }
+        this.HalfMoveClock = Number(Parts[Four]) || Zero;
+        this.FullMoveNumber = Number(Parts[Five]) || One;
+        this.GameOver = false;
+        this.IsCheckmate = false;
+        this.Result = '';
+        this.LastMove = null;
+        this.LastSpecialText = 'Loaded FEN position.';
+        this.EvaluateTerminalState();
+        this.RecordFrame();
+        return true;
+    }
+
+    // Converts a legal UCI move into FIDE Standard Algebraic Notation prior to board mutation.
+    FormatMoveAsSan(MoveUci) {
+        // Extracts moving piece, capture state, destination square, and castling notation.
+        const Coords = this.ParseUci(MoveUci);
+        const MovingPiece = this.Board[Coords.FromRow][Coords.FromCol];
+        if (!MovingPiece) {
+            return MoveUci;
+        }
+        const PieceUpper = MovingPiece.toUpperCase();
+        const IsWhite = MovingPiece === PieceUpper;
+        const TargetPiece = this.Board[Coords.ToRow][Coords.ToCol];
+        const IsEnPassant = (
+            PieceUpper === 'P' &&
+            Coords.FromCol !== Coords.ToCol &&
+            Coords.ToRow === this.EnPassantRow &&
+            Coords.ToCol === this.EnPassantCol
+        );
+        const IsCapture = TargetPiece !== '' || IsEnPassant;
+        const DestSquare = MoveUci.slice(Two, Four);
+        if (PieceUpper === 'K' && Math.abs(Coords.ToCol - Coords.FromCol) === Two) {
+            return Coords.ToCol === Six ? 'O-O' : 'O-O-O';
+        }
+        if (PieceUpper === 'P') {
+            const Prefix = IsCapture ? `${MoveUci[Zero]}x` : '';
+            const PromoText = Coords.Promotion !== '' ? `=${Coords.Promotion.toUpperCase()}` : '';
+            return `${Prefix}${DestSquare}${PromoText}`;
+        }
+
+        // Computes file/rank disambiguation when identical pieces can reach DestSquare.
+        const CurrentLegal = this.GenerateLegalMoves(IsWhite);
+        let AmbiguousCount = Zero;
+        let SameFile = false;
+        let SameRank = false;
+        for (let Index = Zero; Index < CurrentLegal.length; Index += One) {
+            const OtherUci = CurrentLegal[Index];
+            if (OtherUci === MoveUci || OtherUci.slice(Two, Four) !== DestSquare) {
+                continue;
+            }
+            const OtherCoords = this.ParseUci(OtherUci);
+            if (this.Board[OtherCoords.FromRow][OtherCoords.FromCol] === MovingPiece) {
+                AmbiguousCount += One;
+                if (OtherCoords.FromCol === Coords.FromCol) {
+                    SameFile = true;
+                }
+                if (OtherCoords.FromRow === Coords.FromRow) {
+                    SameRank = true;
+                }
+            }
+        }
+        let Disambig = '';
+        if (AmbiguousCount > Zero) {
+            if (!SameFile) {
+                Disambig = MoveUci[Zero];
+            } else if (!SameRank) {
+                Disambig = MoveUci[One];
+            } else {
+                Disambig = MoveUci.slice(Zero, Two);
+            }
+        }
+        const CaptureSign = IsCapture ? 'x' : '';
+        return `${PieceUpper}${Disambig}${CaptureSign}${DestSquare}`;
     }
 
     // Places or removes a piece on SquareName during Sandbox mode editing.
@@ -556,7 +823,8 @@ class ChessGame {
 
     // Applies a validated UCI move to the live board state.
     CommitMove(MoveUci) {
-        // Parses source, destination, and optional promotion piece from UCI.
+        // Formats the move in Standard Algebraic Notation before mutating the board.
+        const SanText = this.FormatMoveAsSan(MoveUci);
         const Coords = this.ParseUci(MoveUci);
         const MovingPiece = this.Board[Coords.FromRow][Coords.FromCol];
         const TargetPiece = this.Board[Coords.ToRow][Coords.ToCol];
@@ -616,8 +884,9 @@ class ChessGame {
             this.HalfMoveClock += One;
         }
 
-        // Records the move in history and updates LastMove.
+        // Records the move in UCI and SAN histories and updates LastMove.
         this.History.push(MoveUci);
+        this.SanHistory.push(SanText);
         this.LastMove = MoveUci;
     }
 
@@ -626,6 +895,14 @@ class ChessGame {
         // Records the new position repetition count and computes legal moves for the active player.
         const Repetitions = this.RecordPositionCount();
         const LegalMoves = this.GenerateLegalMoves(this.WhiteTurn);
+        const InCheck = this.IsKingInCheck(this.Board, this.WhiteTurn);
+
+        // Appends + (check) or # (checkmate) to the latest SAN move entry if applicable.
+        if (InCheck && this.SanHistory.length > Zero) {
+            const LastIdx = this.SanHistory.length - One;
+            const BaseSan = this.SanHistory[LastIdx].replace(/[+#]$/g, '');
+            this.SanHistory[LastIdx] = BaseSan + (LegalMoves.length === Zero ? '#' : '+');
+        }
 
         // Checks for checkmate (FIDE Article 5.1.1) and stalemate (FIDE Article 5.2.1) first.
         if (LegalMoves.length === Zero) {

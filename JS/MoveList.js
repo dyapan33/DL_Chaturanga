@@ -1,9 +1,11 @@
 // Renders the ordered move history and non-destructive move playback controls.
 class MoveListView {
-    Initialize(MountId, OnSelectFrame) {
+    Initialize(MountId, OnSelectFrame, OnCopyPgn, OnCopyFen) {
         // Stores the target DOM element, frame callback, and renders an empty list.
         this.Root = document.getElementById(MountId);
         this.OnSelectFrame = OnSelectFrame;
+        this.OnCopyPgn = OnCopyPgn;
+        this.OnCopyFen = OnCopyFen;
         this.Render([], Zero, Zero);
     }
 
@@ -37,11 +39,32 @@ class MoveListView {
         // Pairs consecutive half-moves into numbered list items with clickable tokens.
         const List = this.BuildMoveList(History, ViewedFrameIndex);
         Panel.appendChild(List);
+        Panel.appendChild(this.BuildExportBar());
         this.Root.appendChild(Panel);
         List.scrollTop = List.scrollHeight;
         if (window.lucide && window.lucide.createIcons) {
             window.lucide.createIcons();
         }
+    }
+
+    // Builds the Copy PGN and Copy FEN action buttons below the move list.
+    BuildExportBar() {
+        // Creates the button row for copying PGN or FEN notation to the clipboard.
+        const ExportRow = document.createElement('div');
+        ExportRow.className = 'HistoryControls ExportBarRow';
+        const PgnBtn = this.CreateIconNavButton('copy', 'Copy PGN', false, () => {
+            if (this.OnCopyPgn) {
+                this.OnCopyPgn();
+            }
+        });
+        const FenBtn = this.CreateIconNavButton('clipboard', 'Copy FEN', false, () => {
+            if (this.OnCopyFen) {
+                this.OnCopyFen();
+            }
+        });
+        ExportRow.appendChild(PgnBtn);
+        ExportRow.appendChild(FenBtn);
+        return ExportRow;
     }
 
     // Builds the Prev, Next, and Live navigation buttons for reviewing played moves.

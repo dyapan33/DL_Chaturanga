@@ -30,10 +30,11 @@ const SandboxPiecesBlack = [
 const MaxUndoRequests = Three;
 const MaxDrawRequests = Three;
 const RequestCooldownSeconds = Ten;
+const LowClockWarningSeconds = 15;
 const CooldownTickMs = 1000;
 const ValidUciPattern = new RegExp('^[a-h][1-8][a-h][1-8][qrbn]?$');
 
-// Coordinates user input, drag-and-drop, multiplayer, chess rules, and bot responses.
+// Coordinates user input, drag-and-drop, multiplayer, chess rules, clocks, and bot responses.
 class Controller {
     Initialize() {
         // Instantiates the game engine, bot AI, multiplayer manager, and UI views.
@@ -42,6 +43,11 @@ class Controller {
         this.Busy = false;
         this.GameStarted = false;
         this.BotTimerId = null;
+        this.ClockTimerId = null;
+        this.TimeControlSeconds = Zero;
+        this.IncrementSeconds = Zero;
+        this.WhiteClockSeconds = Zero;
+        this.BlackClockSeconds = Zero;
         this.UndoRequestsUsed = Zero;
         this.DrawRequestsUsed = Zero;
         this.OpponentUndoRequestsUsed = Zero;
@@ -67,14 +73,23 @@ class Controller {
             (FromSquare, ToSquare) => this.HandlePieceDrop(FromSquare, ToSquare)
         );
         this.Moves = new MoveListView();
-        this.Moves.Initialize('MoveList', (FrameIndex) => this.SelectHistoryFrame(FrameIndex));
+        this.Moves.Initialize(
+            'MoveList',
+            (FrameIndex) => this.SelectHistoryFrame(FrameIndex),
+            () => this.CopyPgnToClipboard(),
+            () => this.CopyFenToClipboard()
+        );
         this.Status = new StatusView();
         this.Status.Initialize('StatusPanel');
         this.Selector = new BotSelectorView();
         this.Selector.Initialize(
             'BotSelector',
-            (Elo, OddsPieces, OddsTimes, PlayerColor) => this.StartBotGame(Elo, OddsPieces, OddsTimes, PlayerColor),
-            (HostColor, HostName) => this.CreateMultiplayerGame(HostColor, HostName),
+            (Elo, OddsPieces, OddsTimes, PlayerColor, TimeSeconds, IncrementSeconds) => {
+                this.StartBotGame(Elo, OddsPieces, OddsTimes, PlayerColor, TimeSeconds, IncrementSeconds);
+            },
+            (HostColor, HostName, TimeSeconds, IncrementSeconds) => {
+                this.CreateMultiplayerGame(HostColor, HostName, TimeSeconds, IncrementSeconds);
+            },
             (CodeOrLink, GuestName) => this.JoinMultiplayerGame(CodeOrLink, GuestName),
             (PlayerColor) => this.StartSandboxGame(PlayerColor)
         );
@@ -89,63 +104,26 @@ class Controller {
         this.GameControlsBox = document.getElementById('GameControls');
         this.PostGameControlsBox = document.getElementById('PostGameControls');
         this.OpponentBannerBox = document.getElementById('OpponentBanner');
+        this.RematchButton = document.getElementById('RematchButton');
         this.UndoButton = document.getElementById('UndoButton');
         this.UndoButtonText = document.getElementById('UndoButtonText');
         this.DrawButton = document.getElementById('DrawButton');
         this.DrawButtonText = document.getElementById('DrawButtonText');
         this.ResignButton = document.getElementById('ResignButton');
 
-        // Binds click listeners for New Game, Undo, Draw Request, and Resign buttons.
+        // Binds click listeners for New Game, Rematch, Undo, Draw Request, and Resign buttons.
         document.getElementById('NewGameButton').addEventListener('click', () => {
             this.ClearRoomQueryFromUrl();
             this.ShowPreGameSetup();
         });
+        if (this.RematchButton) {
+            this.RematchButton.addEventListener('click', () => this.HandleRematchClick());
+        }
         this.UndoButton.addEventListener('click', () => this.Undo());
         this.DrawButton.addEventListener('click', () => this.HandleAskForDraw());
         this.ResignButton.addEventListener('click', () => this.HandleResign());
         this.UpdateRequestButtons();
         this.RefreshIcons();
-    }
-
-    // Displays the current bot (name and Elo) or multiplayer opponent name below the buttons.
-    RenderOpponentBanner(State) {
-        // Hides the banner before game start or during Sandbox mode.
-        if (!this.OpponentBannerBox) {
-            return;
-        }
-        if (!this.GameStarted || !State || State.IsSandbox) {
-            this.OpponentBannerBox.classList.add('Hidden');
-            this.OpponentBannerBox.innerHTML = '';
-            return;
-        }
-
-        // Builds the banner card showing the bot name + Elo or the multiplayer opponent's name.
-        this.OpponentBannerBox.classList.remove('Hidden');
-        this.OpponentBannerBox.innerHTML = '';
-        const Panel = document.createElement('div');
-        Panel.className = 'Panel';
-        const Card = document.createElement('div');
-        Card.className = 'OpponentBannerCard';
-        const Left = document.createElement('div');
-        Left.className = 'OpponentBannerLeft';
-        const Icon = document.createElement('i');
-        Icon.setAttribute('data-lucide', State.IsMultiplayer ? 'user' : 'bot');
-        const Prefix = document.createElement('span');
-        Prefix.textContent = 'Playing against:';
-        const NameSpan = document.createElement('span');
-        NameSpan.className = 'OpponentBannerName';
-        if (State.IsMultiplayer) {
-            NameSpan.textContent = this.OpponentName || 'Opponent';
-        } else {
-            const BotName = GetBotName(State.BotElo);
-            NameSpan.textContent = `${BotName} (${State.BotElo} Elo)`;
-        }
-        Left.appendChild(Icon);
-        Left.appendChild(Prefix);
-        Card.appendChild(Left);
-        Card.appendChild(NameSpan);
-        Panel.appendChild(Card);
-        this.OpponentBannerBox.appendChild(Panel);
     }
 
     // Renders any uninitialized Lucide icon tags present in the document.
@@ -169,13 +147,16 @@ class Controller {
 
     // Resets the UI to the pre-game state where only the board and bot selector are shown.
     ShowPreGameSetup() {
-        // Cancels any pending bot timer, disconnects multiplayer, and resets flags.
+        // Cancels any pending bot or clock timers, disconnects multiplayer, and resets flags.
         this.ClearBotTimer();
+        this.StopClockTimer();
         this.ResetRequestLimits();
         this.Network.Disconnect();
         this.Status.SetRoomCode('');
         this.Status.SetMessage('');
         this.OpponentName = '';
+        this.TimeControlSeconds = Zero;
+        this.IncrementSeconds = Zero;
         this.Selector.ResetMultiplayerState();
         this.Busy = false;
         this.GameStarted = false;
@@ -199,6 +180,9 @@ class Controller {
             this.OpponentBannerBox.classList.add('Hidden');
             this.OpponentBannerBox.innerHTML = '';
         }
+        if (this.RematchButton) {
+            this.RematchButton.classList.add('Hidden');
+        }
         this.StatusBox.classList.add('Hidden');
         this.MoveListBox.classList.add('Hidden');
         this.GameControlsBox.classList.add('Hidden');
@@ -206,53 +190,13 @@ class Controller {
         this.RefreshIcons();
     }
 
-    // Displays the current bot (name and Elo) or multiplayer opponent name below the buttons.
-    RenderOpponentBanner(State) {
-        // Hides the banner before game start or during Sandbox mode.
-        if (!this.OpponentBannerBox) {
-            return;
-        }
-        if (!this.GameStarted || !State || State.IsSandbox) {
-            this.OpponentBannerBox.classList.add('Hidden');
-            this.OpponentBannerBox.innerHTML = '';
-            return;
-        }
-
-        // Builds the banner card showing the bot name + Elo or the multiplayer opponent's name.
-        this.OpponentBannerBox.classList.remove('Hidden');
-        this.OpponentBannerBox.innerHTML = '';
-        const Panel = document.createElement('div');
-        Panel.className = 'Panel';
-        const Card = document.createElement('div');
-        Card.className = 'OpponentBannerCard';
-        const Left = document.createElement('div');
-        Left.className = 'OpponentBannerLeft';
-        const Icon = document.createElement('i');
-        Icon.setAttribute('data-lucide', State.IsMultiplayer ? 'user' : 'bot');
-        const Prefix = document.createElement('span');
-        Prefix.textContent = 'Playing against:';
-        const NameSpan = document.createElement('span');
-        NameSpan.className = 'OpponentBannerName';
-        if (State.IsMultiplayer) {
-            NameSpan.textContent = this.OpponentName || 'Opponent';
-        } else {
-            const BotName = GetBotName(State.BotElo);
-            NameSpan.textContent = `${BotName} (${State.BotElo} Elo)`;
-        }
-        Left.appendChild(Icon);
-        Left.appendChild(Prefix);
-        Card.appendChild(Left);
-        Card.appendChild(NameSpan);
-        Panel.appendChild(Card);
-        this.OpponentBannerBox.appendChild(Panel);
-    }
-
-    // Starts a game against the AI bot with the selected side color and settings.
-    StartBotGame(Elo, OddsPieces, OddsTimes, PlayerColor) {
-        // Disconnects any multiplayer session and configures the board orientation.
+    // Starts a game against the AI bot with the selected side color, settings, and clock.
+    StartBotGame(Elo, OddsPieces, OddsTimes, PlayerColor, TimeSeconds, IncrementSeconds) {
+        // Disconnects any multiplayer session and configures the board orientation and clock.
         this.Network.Disconnect();
         const ChosenColor = PlayerColor || 'w';
         const BotName = GetBotName(Elo);
+        this.ConfigureMatchClock(TimeSeconds, IncrementSeconds);
         this.ActivateMatchSession(Elo, OddsPieces, OddsTimes, ChosenColor, false, false);
         this.Status.SetRoomCode('');
         this.Status.SetMessage(`Playing as ${ChosenColor === 'w' ? 'White' : 'Black'} vs ${BotName} (${Elo} Elo).`);
@@ -271,6 +215,7 @@ class Controller {
         const ChosenColor = PlayerColor || 'w';
         this.SandboxTool = 'move';
         this.SandboxPiece = '';
+        this.ConfigureMatchClock(Zero, Zero);
         this.ActivateMatchSession(DefaultBotElo, '', One, ChosenColor, false, true);
         this.Status.SetRoomCode('');
         this.Status.SetMessage('Control both sides, or select a tool to add or remove pieces.');
@@ -278,14 +223,14 @@ class Controller {
     }
 
     // Creates a multiplayer room and displays its code and shareable link.
-    CreateMultiplayerGame(HostColor, HostName) {
+    CreateMultiplayerGame(HostColor, HostName, TimeSeconds, IncrementSeconds) {
         // Validates that the host entered a name before creating the room.
         const CleanName = String(HostName || '').trim();
         if (CleanName === '') {
             this.Selector.SetStatusNotice('Please enter your name before creating a game.');
             return;
         }
-        const RoomInfo = this.Network.CreateRoom(HostColor || 'w', CleanName);
+        const RoomInfo = this.Network.CreateRoom(HostColor || 'w', CleanName, TimeSeconds, IncrementSeconds);
         this.Selector.SetCreatedRoom(RoomInfo);
     }
 
@@ -329,6 +274,103 @@ class Controller {
         this.GameControlsBox.classList.remove('Hidden');
         this.PostGameControlsBox.classList.add('Hidden');
         this.Game.Start(Elo, OddsPieces, OddsTimes, PlayerColor, IsMultiplayer, IsSandbox);
+        this.StartClockTimer();
+    }
+
+    // Configures the initial White and Black chess clock durations and increment.
+    ConfigureMatchClock(TimeSeconds, IncrementSeconds) {
+        // Stops any previous clock and sets the new base time and increment.
+        this.StopClockTimer();
+        this.TimeControlSeconds = Number(TimeSeconds) || Zero;
+        this.IncrementSeconds = Number(IncrementSeconds) || Zero;
+        this.WhiteClockSeconds = this.TimeControlSeconds;
+        this.BlackClockSeconds = this.TimeControlSeconds;
+    }
+
+    // Starts the 1-second interval timer when a timed chess clock is enabled.
+    StartClockTimer() {
+        // Exits if unlimited time control is selected or setInterval is unavailable.
+        this.StopClockTimer();
+        if (this.TimeControlSeconds <= Zero || typeof setInterval !== 'function') {
+            return;
+        }
+        this.ClockTimerId = setInterval(() => this.TickMatchClock(), CooldownTickMs);
+    }
+
+    // Stops the active chess clock interval timer.
+    StopClockTimer() {
+        // Clears the clock interval identifier if active.
+        if (this.ClockTimerId !== null) {
+            if (typeof clearInterval === 'function') {
+                clearInterval(this.ClockTimerId);
+            }
+            this.ClockTimerId = null;
+        }
+    }
+
+    // Decrements the active side's clock by one second and enforces FIDE Article 6.9 timeout.
+    TickMatchClock() {
+        // Stops ticking if the game has ended or no time control is active.
+        if (!this.GameStarted || !this.State || this.State.GameOver || this.TimeControlSeconds <= Zero) {
+            this.StopClockTimer();
+            return;
+        }
+
+        // Decrements the active side's remaining time and checks for flag fall.
+        if (this.State.Turn === 'w') {
+            this.WhiteClockSeconds = Math.max(Zero, this.WhiteClockSeconds - One);
+            if (this.WhiteClockSeconds <= Zero) {
+                this.HandleClockTimeout('w');
+                return;
+            }
+        } else {
+            this.BlackClockSeconds = Math.max(Zero, this.BlackClockSeconds - One);
+            if (this.BlackClockSeconds <= Zero) {
+                this.HandleClockTimeout('b');
+                return;
+            }
+        }
+        this.RenderOpponentBanner(this.State);
+        this.RefreshIcons();
+    }
+
+    // Adds the configured increment seconds to the side that just completed a move.
+    ApplyClockIncrement(MovedColor) {
+        // Adds IncrementSeconds when a timed clock is active and the game is still running.
+        if (this.TimeControlSeconds <= Zero || this.IncrementSeconds <= Zero || !this.State || this.State.GameOver) {
+            return;
+        }
+        if (MovedColor === 'w') {
+            this.WhiteClockSeconds += this.IncrementSeconds;
+        } else {
+            this.BlackClockSeconds += this.IncrementSeconds;
+        }
+    }
+
+    // Ends the match when FlaggedColor's clock reaches zero under FIDE Article 6.9.
+    HandleClockTimeout(FlaggedColor) {
+        // Stops timers, applies FIDE Article 6.9 timeout evaluation, and notifies peer.
+        this.StopClockTimer();
+        this.ClearBotTimer();
+        this.Busy = false;
+        this.HidePromotionPicker();
+        this.HideDrawOfferPrompt();
+        this.Game.Timeout(FlaggedColor);
+        if (this.State && this.State.IsMultiplayer) {
+            this.Network.SendPayload({ Type: 'Timeout', Color: FlaggedColor });
+        }
+        this.ApplyState(this.Game.GetState());
+    }
+
+    // Formats a duration in seconds as MM:SS for the chess clock badges.
+    FormatClockTime(TotalSeconds) {
+        // Computes zero-padded minutes and seconds.
+        const Clamped = Math.max(Zero, Math.floor(Number(TotalSeconds) || Zero));
+        const Minutes = Math.floor(Clamped / SixtySeconds);
+        const Seconds = Clamped % SixtySeconds;
+        const MinText = Minutes < Ten ? `0${Minutes}` : String(Minutes);
+        const SecText = Seconds < Ten ? `0${Seconds}` : String(Seconds);
+        return `${MinText}:${SecText}`;
     }
 
     // Renders the Sandbox editor panel for controlling both sides and adding/removing pieces.
@@ -402,7 +444,61 @@ class Controller {
         UtilRow.appendChild(TurnBtn);
         UtilRow.appendChild(ClearBtn);
         Panel.appendChild(UtilRow);
+
+        // Appends a FEN input and Load FEN button for importing custom positions.
+        const FenRow = document.createElement('div');
+        FenRow.className = 'InlineInputRow';
+        const FenInput = document.createElement('input');
+        FenInput.type = 'text';
+        FenInput.className = 'TextInput';
+        FenInput.placeholder = 'Paste FEN to load...';
+        const LoadFenBtn = document.createElement('button');
+        LoadFenBtn.type = 'button';
+        LoadFenBtn.className = 'HistoryButton';
+        LoadFenBtn.textContent = 'Load FEN';
+        LoadFenBtn.addEventListener('click', () => {
+            this.LoadFenPosition(FenInput.value);
+        });
+        FenRow.appendChild(FenInput);
+        FenRow.appendChild(LoadFenBtn);
+        Panel.appendChild(FenRow);
         this.SandboxBox.appendChild(Panel);
+    }
+
+    // Loads a custom FEN position into the game engine and updates the UI.
+    LoadFenPosition(FenString) {
+        // Validates and applies the FEN string via ChessGame.LoadFen.
+        const Loaded = this.Game.LoadFen(FenString);
+        if (!Loaded) {
+            this.Status.SetMessage('Invalid FEN string.');
+            this.Status.Render(this.State);
+            return;
+        }
+        this.Status.SetMessage('FEN position loaded.');
+        this.ApplyState(this.Game.GetState());
+    }
+
+    // Copies the current game's PGN notation to the clipboard.
+    CopyPgnToClipboard() {
+        // Generates the PGN string and copies it via BotSelectorView's clipboard helper.
+        if (!this.State) {
+            return;
+        }
+        const PgnText = this.Game.GeneratePgn() || 'No moves played yet.';
+        this.Selector.CopyTextToClipboard(PgnText, 'PGN copied!');
+        this.Status.SetMessage('PGN copied to clipboard!');
+        this.Status.Render(this.State);
+    }
+
+    // Copies the current board position's FEN string to the clipboard.
+    CopyFenToClipboard() {
+        // Reads the current FEN and copies it via BotSelectorView's clipboard helper.
+        if (!this.State) {
+            return;
+        }
+        this.Selector.CopyTextToClipboard(this.State.Fen, 'FEN copied!');
+        this.Status.SetMessage('FEN copied to clipboard!');
+        this.Status.Render(this.State);
     }
 
     // Builds a row of 6 piece buttons for placing White or Black pieces on the board.
@@ -458,6 +554,7 @@ class Controller {
         if (Payload.Type === 'OpponentJoined' || Payload.Type === 'JoinedRoom') {
             const AssignedColor = Payload.Color || 'w';
             this.OpponentName = String(Payload.OpponentName || '').trim() || 'Opponent';
+            this.ConfigureMatchClock(Payload.TimeSeconds, Payload.IncrementSeconds);
             this.ActivateMatchSession(DefaultBotElo, '', One, AssignedColor, true, false);
             this.Status.SetRoomCode(this.Network.RoomCode);
             this.Status.SetMessage(`Multiplayer vs ${this.OpponentName} (${AssignedColor === 'w' ? 'White' : 'Black'}).`);
@@ -482,7 +579,32 @@ class Controller {
             }
             this.HideDrawOfferPrompt();
             this.Game.PlayerMove(Payload.MoveUci);
+            this.ApplyClockIncrement(OpponentColor);
             this.ApplyState(this.Game.GetState());
+            return;
+        }
+
+        // Handles clock timeout notifications and post-game rematch requests/acceptances.
+        if (Payload.Type === 'Timeout') {
+            const FlaggedColor = Payload.Color === 'b' ? 'b' : 'w';
+            this.StopClockTimer();
+            this.HideDrawOfferPrompt();
+            this.Game.Timeout(FlaggedColor);
+            this.ApplyState(this.Game.GetState());
+            return;
+        }
+        if (Payload.Type === 'RematchRequest') {
+            this.ShowRematchPrompt();
+            return;
+        }
+        if (Payload.Type === 'RematchAccept') {
+            this.HideDrawOfferPrompt();
+            this.ExecuteMultiplayerRematch();
+            return;
+        }
+        if (Payload.Type === 'RematchDecline') {
+            this.Status.SetMessage('Opponent declined the rematch request.');
+            this.Status.Render(this.State);
             return;
         }
 
@@ -581,6 +703,46 @@ class Controller {
                 this.Network.SendPayload({ Type: 'UndoDecline' });
             }
         );
+    }
+
+    // Sends a rematch request to the multiplayer opponent after a game finishes.
+    HandleRematchClick() {
+        // Validates that the match is a finished multiplayer game before sending RematchRequest.
+        if (!this.GameStarted || !this.State || !this.State.IsMultiplayer || !this.State.GameOver) {
+            return;
+        }
+        this.Network.SendPayload({ Type: 'RematchRequest' });
+        this.Status.SetMessage('Rematch request sent to opponent.');
+        this.Status.Render(this.State);
+    }
+
+    // Displays the centered blur modal when the opponent requests a rematch.
+    ShowRematchPrompt() {
+        // Renders the accept/decline modal for a multiplayer rematch.
+        this.ShowPeerPrompt(
+            'Opponent wants a rematch',
+            'Accept Rematch',
+            () => {
+                this.HideDrawOfferPrompt();
+                this.Network.SendPayload({ Type: 'RematchAccept' });
+                this.ExecuteMultiplayerRematch();
+            },
+            () => {
+                this.HideDrawOfferPrompt();
+                this.Network.SendPayload({ Type: 'RematchDecline' });
+            }
+        );
+    }
+
+    // Swaps sides and starts a fresh multiplayer game in the same room.
+    ExecuteMultiplayerRematch() {
+        // Flips the local player's color, resets clocks and limits, and restarts the board.
+        const NextColor = (this.State && this.State.PlayerColor === 'w') ? 'b' : 'w';
+        this.ConfigureMatchClock(this.TimeControlSeconds, this.IncrementSeconds);
+        this.ActivateMatchSession(DefaultBotElo, '', One, NextColor, true, false);
+        this.Status.SetRoomCode(this.Network.RoomCode);
+        this.Status.SetMessage(`Rematch started vs ${this.OpponentName} (${NextColor === 'w' ? 'White' : 'Black'}).`);
+        this.ApplyState(this.Game.GetState());
     }
 
     // Builds and mounts a two-button peer confirmation prompt inside DrawOfferBox.
@@ -798,6 +960,7 @@ class Controller {
         }
 
         // Executes the player move on the local ChessGame engine.
+        const MovedColor = this.State.Turn;
         const Applied = this.Game.PlayerMove(MoveUci);
         if (!Applied) {
             this.Status.SetMessage('Illegal move.');
@@ -805,7 +968,8 @@ class Controller {
             return;
         }
 
-        // Updates the UI and either sends the move to the peer or schedules the bot turn.
+        // Updates the clock increment, UI, and either sends the move to peer or schedules bot.
+        this.ApplyClockIncrement(MovedColor);
         this.HideDrawOfferPrompt();
         this.ApplyState(this.Game.GetState());
         if (this.State.IsSandbox) {
@@ -820,7 +984,7 @@ class Controller {
         }
     }
 
-    // Schedules the bot to compute and play its move after a random 1-10s delay.
+    // Schedules the bot to compute and play its move after a random 1-5s delay.
     ScheduleBotTurn() {
         // Marks the controller busy and schedules the bot execution callback.
         this.ClearBotTimer();
@@ -835,10 +999,15 @@ class Controller {
     // Computes and applies a single bot move, chaining extra moves if odds apply.
     ExecuteBotTurn() {
         // Chooses a move for the bot's color and applies it to the game state.
+        if (!this.State || this.State.GameOver) {
+            this.Busy = false;
+            return;
+        }
         const BotIsWhite = this.State.PlayerColor === 'b';
         const BotMoveUci = this.Bot.ChooseMove(this.Game, this.State.BotElo, BotIsWhite);
         if (BotMoveUci) {
             this.Game.ApplyBotMove(BotMoveUci);
+            this.ApplyClockIncrement(BotIsWhite ? 'w' : 'b');
         }
         this.ApplyState(this.Game.GetState());
 
@@ -986,7 +1155,8 @@ class Controller {
         this.HidePromotionPicker();
         this.ViewedFrameIndex = FrameIndex;
         const LatestIndex = this.State.Frames.length - One;
-        this.Moves.Render(this.State.History, this.ViewedFrameIndex, LatestIndex);
+        const DisplayMoves = this.State.SanHistory || this.State.History;
+        this.Moves.Render(DisplayMoves, this.ViewedFrameIndex, LatestIndex);
 
         // Renders the live interactive board if at the latest frame, or a read-only frame otherwise.
         if (this.ViewedFrameIndex === LatestIndex) {
@@ -1018,12 +1188,14 @@ class Controller {
 
         // Updates the board, move list, status, sandbox, and opponent banner panels.
         if (NewState.GameOver) {
+            this.StopClockTimer();
             this.Status.SetRoomCode('');
             this.ClearRoomQueryFromUrl();
         }
         const AllowBoardMoves = this.IsLocalPlayerTurn() && (!NewState.IsSandbox || this.SandboxTool === 'move');
+        const DisplayMoves = NewState.SanHistory || NewState.History;
         this.Board.ApplyState(NewState, AllowBoardMoves);
-        this.Moves.Render(NewState.History, this.ViewedFrameIndex, LatestIndex);
+        this.Moves.Render(DisplayMoves, this.ViewedFrameIndex, LatestIndex);
         this.Status.Render(NewState);
         this.RenderOpponentBanner(NewState);
         if (NewState.IsSandbox) {
@@ -1033,6 +1205,9 @@ class Controller {
         // Configures action buttons for Sandbox mode, finished games, or active matches.
         if (NewState.IsSandbox) {
             this.PostGameControlsBox.classList.remove('Hidden');
+            if (this.RematchButton) {
+                this.RematchButton.classList.add('Hidden');
+            }
             this.UndoButton.classList.remove('Hidden');
             this.UndoButton.disabled = !this.Game.CanUndo();
             if (this.UndoButtonText) {
@@ -1043,11 +1218,21 @@ class Controller {
         } else if (NewState.GameOver) {
             this.ClearCooldownTimers();
             this.PostGameControlsBox.classList.remove('Hidden');
+            if (this.RematchButton) {
+                if (NewState.IsMultiplayer) {
+                    this.RematchButton.classList.remove('Hidden');
+                } else {
+                    this.RematchButton.classList.add('Hidden');
+                }
+            }
             this.UndoButton.classList.add('Hidden');
             this.DrawButton.classList.add('Hidden');
             this.ResignButton.classList.add('Hidden');
         } else {
             this.PostGameControlsBox.classList.add('Hidden');
+            if (this.RematchButton) {
+                this.RematchButton.classList.add('Hidden');
+            }
             this.UndoButton.classList.remove('Hidden');
             this.DrawButton.classList.remove('Hidden');
             this.ResignButton.classList.remove('Hidden');
@@ -1056,7 +1241,7 @@ class Controller {
         this.RefreshIcons();
     }
 
-    // Displays the current bot (name and Elo) or multiplayer opponent name below the buttons.
+    // Displays the opponent/bot name, chess clocks, and captured pieces below the buttons.
     RenderOpponentBanner(State) {
         // Hides the banner before game start or during Sandbox mode.
         if (!this.OpponentBannerBox) {
@@ -1068,7 +1253,7 @@ class Controller {
             return;
         }
 
-        // Builds the banner card showing the bot name + Elo or the multiplayer opponent's name.
+        // Builds the primary opponent/bot identity card.
         this.OpponentBannerBox.classList.remove('Hidden');
         this.OpponentBannerBox.innerHTML = '';
         const Panel = document.createElement('div');
@@ -1094,7 +1279,103 @@ class Controller {
         Card.appendChild(Left);
         Card.appendChild(NameSpan);
         Panel.appendChild(Card);
+
+        // Appends the live White and Black chess clocks when a time control is active.
+        if (this.TimeControlSeconds > Zero) {
+            Panel.appendChild(this.BuildClocksRow(State));
+        }
+
+        // Appends the captured pieces and material advantage breakdown.
+        if (State.Material) {
+            Panel.appendChild(this.BuildMaterialRow(State.Material));
+        }
         this.OpponentBannerBox.appendChild(Panel);
+    }
+
+    // Builds the White and Black countdown clock badges for timed games.
+    BuildClocksRow(State) {
+        // Creates two clock badges highlighting the side whose clock is currently ticking.
+        const Row = document.createElement('div');
+        Row.className = 'ClockBarRow';
+        const WhiteActive = !State.GameOver && State.Turn === 'w';
+        const BlackActive = !State.GameOver && State.Turn === 'b';
+        const WhiteBadge = this.BuildSingleClockBadge('White', this.WhiteClockSeconds, WhiteActive);
+        const BlackBadge = this.BuildSingleClockBadge('Black', this.BlackClockSeconds, BlackActive);
+        Row.appendChild(WhiteBadge);
+        Row.appendChild(BlackBadge);
+        return Row;
+    }
+
+    // Builds an individual side's clock badge with low-time warning styling.
+    BuildSingleClockBadge(SideLabel, RemainingSeconds, IsActive) {
+        // Formats the MM:SS time and applies active or low-time classes.
+        const Badge = document.createElement('div');
+        let ClassText = 'ClockBadge';
+        if (IsActive) {
+            ClassText += ' ActiveClockBadge';
+        }
+        if (RemainingSeconds <= LowClockWarningSeconds) {
+            ClassText += ' LowTimeClockBadge';
+        }
+        Badge.className = ClassText;
+        const LabelSpan = document.createElement('span');
+        LabelSpan.textContent = SideLabel;
+        const TimeSpan = document.createElement('span');
+        TimeSpan.textContent = this.FormatClockTime(RemainingSeconds);
+        Badge.appendChild(LabelSpan);
+        Badge.appendChild(TimeSpan);
+        return Badge;
+    }
+
+    // Builds the captured pieces and material lead (+N) display for White and Black.
+    BuildMaterialRow(Material) {
+        // Creates a row showing captured pieces and material advantage for each side.
+        const Container = document.createElement('div');
+        Container.className = 'MaterialBarRow';
+        const WhiteAdv = Material.WhiteAdvantage > Zero ? Material.WhiteAdvantage : Zero;
+        const BlackAdv = Material.WhiteAdvantage < Zero ? -Material.WhiteAdvantage : Zero;
+        Container.appendChild(this.BuildSideMaterialLine('White captures:', Material.CapturedByWhite, WhiteAdv));
+        Container.appendChild(this.BuildSideMaterialLine('Black captures:', Material.CapturedByBlack, BlackAdv));
+        return Container;
+    }
+
+    // Builds a single side's captured piece icons and +N material advantage badge.
+    BuildSideMaterialLine(LabelText, CapturedCodes, AdvantagePoints) {
+        // Appends mini SVG icons for each captured piece or a dash when none are captured.
+        const Line = document.createElement('div');
+        Line.className = 'MaterialSideLine';
+        const LeftGroup = document.createElement('div');
+        LeftGroup.className = 'CapturedPiecesGroup';
+        const Label = document.createElement('span');
+        Label.textContent = LabelText;
+        LeftGroup.appendChild(Label);
+        if (!CapturedCodes || CapturedCodes.length === Zero) {
+            const NoneSpan = document.createElement('span');
+            NoneSpan.textContent = '—';
+            LeftGroup.appendChild(NoneSpan);
+        } else {
+            for (let Index = Zero; Index < CapturedCodes.length; Index += One) {
+                const Code = CapturedCodes[Index];
+                const Asset = PieceAssetPaths[Code];
+                if (Asset) {
+                    const Img = document.createElement('img');
+                    Img.className = 'CapturedMiniIcon';
+                    Img.src = Asset;
+                    Img.alt = Code;
+                    LeftGroup.appendChild(Img);
+                }
+            }
+        }
+        Line.appendChild(LeftGroup);
+
+        // Appends the +N material advantage badge when this side is ahead in material.
+        if (AdvantagePoints > Zero) {
+            const AdvBadge = document.createElement('span');
+            AdvBadge.className = 'MaterialLeadBadge';
+            AdvBadge.textContent = `+${AdvantagePoints}`;
+            Line.appendChild(AdvBadge);
+        }
+        return Line;
     }
 
     // Handles dropping a dragged piece from FromSquare onto ToSquare.

@@ -19,7 +19,7 @@ const MidHighEloThreshold = 1900;
 const MaxNoiseScale = 350;
 const EloSpan = 2600;
 const MinBotDelayMs = 1000;
-const MaxBotDelayMs = 10000;
+const MaxBotDelayMs = 5000;
 
 // Maps piece types to their centipawn material scores.
 const PieceMaterialMap = {
@@ -38,7 +38,7 @@ class ChessBot {
         this.EloRating = DefaultBotElo;
     }
 
-    // Returns a random thinking delay between 1 and 10 seconds (1000 to 10000 ms).
+    // Returns a random thinking delay between 1 and 5 seconds (1000 to 5000 ms).
     GetThinkingDelay() {
         // Computes a uniform random duration in milliseconds within [MinBotDelayMs, MaxBotDelayMs].
         const Span = MaxBotDelayMs - MinBotDelayMs;

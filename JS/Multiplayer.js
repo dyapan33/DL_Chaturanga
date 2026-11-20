@@ -63,6 +63,8 @@ class MultiplayerManager {
         this.HostColor = 'w';
         this.AssignedColor = 'w';
         this.LocalName = '';
+        this.HostTimeSeconds = Zero;
+        this.HostIncrementSeconds = Zero;
         this.Broadcast = null;
         this.PeerInstance = null;
         this.PeerConnection = null;
@@ -302,7 +304,7 @@ class MultiplayerManager {
     }
 
     // Creates and hosts a new multiplayer room with the host playing HostColor.
-    CreateRoom(HostColor, HostName) {
+    CreateRoom(HostColor, HostName, TimeSeconds, IncrementSeconds) {
         // Cleans up any previous session and initializes a new room code and blinded ID.
         this.Disconnect();
         this.RoomCode = this.GenerateRoomCode();
@@ -312,6 +314,8 @@ class MultiplayerManager {
         this.HostColor = HostColor === 'b' ? 'b' : 'w';
         this.AssignedColor = this.HostColor;
         this.LocalName = this.SanitizePlayerName(HostName);
+        this.HostTimeSeconds = Number(TimeSeconds) || Zero;
+        this.HostIncrementSeconds = Number(IncrementSeconds) || Zero;
 
         // Opens local transport, cross-device HTTPS/WSS relay, and WebRTC host peer.
         this.OpenLocalTransport(this.BlindedRoomId);
@@ -656,14 +660,18 @@ class MultiplayerManager {
                 HostColor: this.HostColor,
                 GuestColor: GuestColor,
                 HostName: this.LocalName || 'Opponent',
-                GuestName: OpponentName
+                GuestName: OpponentName,
+                TimeSeconds: this.HostTimeSeconds,
+                IncrementSeconds: this.HostIncrementSeconds
             });
             if (!this.MatchStarted && this.OnEventCallback) {
                 this.MatchStarted = true;
                 this.OnEventCallback({
                     Type: 'OpponentJoined',
                     Color: this.HostColor,
-                    OpponentName: OpponentName
+                    OpponentName: OpponentName,
+                    TimeSeconds: this.HostTimeSeconds,
+                    IncrementSeconds: this.HostIncrementSeconds
                 });
             }
             return;
@@ -683,7 +691,9 @@ class MultiplayerManager {
                 this.OnEventCallback({
                     Type: 'JoinedRoom',
                     Color: this.AssignedColor,
-                    OpponentName: OpponentName
+                    OpponentName: OpponentName,
+                    TimeSeconds: Number(Payload.TimeSeconds) || Zero,
+                    IncrementSeconds: Number(Payload.IncrementSeconds) || Zero
                 });
             }
             return;

@@ -43,6 +43,7 @@
     --PromoImageSize: 40px;
     --SandboxIconSize: 30px;
     --SideIconSize: 25px;
+    --CapturedIconSize: 17px;
     --MobileInputFontSize: 17px;
     --MobileButtonMinWidth: 110px;
     --MobileCoordFontSize: 10px;
@@ -809,6 +810,87 @@ select:focus {
 .OpponentBannerName {
     color: var(--PanelText);
     font-weight: var(--CoordWeight);
+}
+
+.ClockBarRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--RowGap);
+    margin-top: var(--LineMarginTop);
+    padding-top: var(--LineMarginTop);
+    border-top: var(--ControlBorderWidth) solid var(--PanelBorder);
+}
+
+.ClockBadge {
+    flex: var(--One);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--BadgePadY) var(--ControlPadding);
+    border-radius: var(--BadgeRadius);
+    background: var(--SurfaceElevated);
+    border: var(--ControlBorderWidth) solid var(--PanelBorder);
+    color: var(--MutedText);
+    font-size: var(--BadgeFontSize);
+    font-weight: var(--MediumWeight);
+}
+
+.ActiveClockBadge {
+    border-color: var(--AccentHover);
+    background: var(--ActiveMoveBack);
+    color: var(--PureWhite);
+    font-weight: var(--CoordWeight);
+}
+
+.LowTimeClockBadge {
+    border-color: var(--CheckColor);
+    color: var(--CheckColor);
+    font-weight: var(--CoordWeight);
+}
+
+.MaterialBarRow {
+    display: flex;
+    flex-direction: column;
+    gap: var(--CoordOffsetX);
+    margin-top: var(--LineMarginTop);
+    padding-top: var(--LineMarginTop);
+    border-top: var(--ControlBorderWidth) solid var(--PanelBorder);
+    font-size: var(--SmallFontSize);
+    color: var(--MutedText);
+}
+
+.MaterialSideLine {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--CoordOffsetX);
+}
+
+.CapturedPiecesGroup {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ActivePressY);
+}
+
+.CapturedMiniIcon {
+    width: var(--CapturedIconSize);
+    height: var(--CapturedIconSize);
+}
+
+.MaterialLeadBadge {
+    padding: var(--ActivePressY) var(--CoordOffsetX);
+    border-radius: var(--BadgeRadius);
+    background: var(--ActiveMoveBack);
+    color: var(--OverColor);
+    font-weight: var(--CoordWeight);
+    font-size: var(--SmallFontSize);
+}
+
+.ExportBarRow {
+    margin-top: var(--LineMarginTop);
+    margin-bottom: var(--Zero);
 }
 
 .MovePairRow {
