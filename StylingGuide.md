@@ -1,4 +1,4 @@
-# Styling Guide v1
+# Styling Guide v1.1
 
 All rules below are **mandatory** for every file in the project. These cover every language, no matter HTML, or C++. The examples may use HTML, CSS, JavaScript, C, C++, and Python but that is because those are the only languages I know.
 
@@ -24,13 +24,9 @@ All rules below are **mandatory** for every file in the project. These cover eve
 Any app component that is used in more than one place must have its own
 dedicated file (e.g. `ChatPanel.html`, `Sidebar.html`, `Settings.html`).
 
-- Each component file links to **`Style.css`** (Style.css is just an example) for styling and
-  **`Main.js`** (Main.js is just an example) for functionality.
-- This rule applies to **app-specific** reusable components (panels, modals,
-  cards, layout sections, etc.).
-- This does **not** apply to standard UI elements such as buttons, inputs,
-  text areas, links, or other native HTML controls. Those are written inline
-  where they are needed.
+- Each component file links to **`Style.css`** (Style.css is just an example) for general styling (classes, divs and components that will be used in more than one file) and **`Main.js`** (Main.js is just an example) for general functionality (functions, etc that will be used in more than one file). Remember, files have their own CSS or JavaScript file (or any other language for that matter, so for example a C++ file will also have a C/C++ Header file) dedicated towards them.
+- This rule applies to **app-specific** reusable components (panels, modals, cards, layout sections, etc.).
+- This does **not** apply to standard UI elements such as buttons, inputs, text areas, links, or other native HTML controls. Those are written inline where they are needed.
 
 ---
 
@@ -54,7 +50,7 @@ dedicated file (e.g. `ChatPanel.html`, `Sidebar.html`, `Settings.html`).
 - **No memory leaks:** All allocations must have a matching free/delete/scope-managed owner.
 - **No unnecessary decimals:** Write `123`, not `123.0`.
 - **Number endings:** numeric literals must end in `0`, `1`, `3`, `5`, `7` or `9`. These do not apply to numbers in text or that are actually displayed.
-  (A trailing `0` is always allowed.)
+  (A trailing `0` is always allowed and should be used majority of the time unless you need a 9 in a one-digit or more than one-digit number, or a 1 in a more than one-digit number.)
 
 ---
 
