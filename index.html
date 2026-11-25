@@ -10,58 +10,68 @@
     <script src="https://unpkg.com/peerjs@latest/dist/peerjs.min.js"></script>
 </head>
 <body>
-    <header class="TopBar">
-        <div class="BrandGroup">
-            <i data-lucide="swords" class="BrandIcon"></i>
-            <h1 class="TitleText">Valex Chess</h1>
-        </div>
-    </header>
-
-    <main class="Layout">
-        <section class="BoardColumn">
-            <div id="BoardPanel"></div>
-            <div id="PromotionPanel" class="Hidden"></div>
-            <div id="DrawOfferPanel" class="Hidden"></div>
-        </section>
-
-        <aside class="SideColumn">
-            <div id="BotSelector"></div>
-            <div id="SandboxPanel" class="Hidden"></div>
-            <div id="MoveList" class="Hidden"></div>
-            <div id="GameControls" class="Controls Hidden">
-                <button id="UndoButton" class="PrimaryButton" type="button">
-                    <i data-lucide="rotate-ccw"></i>
-                    <span id="UndoButtonText">Undo</span>
-                </button>
-                <button id="DrawButton" class="SecondaryButton" type="button">
-                    <i data-lucide="handshake"></i>
-                    <span id="DrawButtonText">Draw Request</span>
-                </button>
-                <button id="ResignButton" class="DangerButton" type="button">
-                    <i data-lucide="flag"></i>
-                    <span>Resign</span>
-                </button>
+    <div class="AppShell">
+        <aside id="AppSidebar" class="AppSidebar">
+            <div class="SidebarHeader">
+                <h1 id="SidebarLogo" class="SidebarLogo">Valex Chess</h1>
             </div>
-            <div id="PostGameControls" class="Controls Hidden">
-                <button id="RematchButton" class="SecondaryButton Hidden" type="button">
-                    <i data-lucide="repeat"></i>
-                    <span>Rematch</span>
-                </button>
-                <button id="NewGameButton" class="PrimaryButton" type="button">
-                    <i data-lucide="refresh-cw"></i>
-                    <span>New Game</span>
-                </button>
+            <div class="SidebarDivider"></div>
+            <div class="SidebarGamesHeader">
+                <span class="SidebarSectionLabel">Your Games</span>
             </div>
-            <div id="StatusPanel" class="Hidden"></div>
-            <div id="OpponentBanner" class="Hidden"></div>
+            <div id="SavedGamesList" class="SavedGamesList"></div>
         </aside>
-    </main>
-	
-	<!-- Made by D Letten -->
+
+        <main id="WorkspaceLayout" class="Layout PreGameLayout">
+            <section id="BoardColumn" class="BoardColumn Hidden">
+                <div id="BoardPanel"></div>
+                <div id="PromotionPanel" class="Hidden"></div>
+                <div id="DrawOfferPanel" class="Hidden"></div>
+            </section>
+
+            <aside id="SideColumn" class="SideColumn">
+                <div id="BotSelector"></div>
+                <div id="SandboxPanel" class="Hidden"></div>
+                <div id="MoveList" class="Hidden"></div>
+                <div id="GameControls" class="Controls Hidden">
+                    <button id="UndoButton" class="PrimaryButton" type="button">
+                        <i data-lucide="rotate-ccw"></i>
+                        <span id="UndoButtonText">Undo</span>
+                    </button>
+                    <button id="DrawButton" class="SecondaryButton" type="button">
+                        <i data-lucide="handshake"></i>
+                        <span id="DrawButtonText">Draw Request</span>
+                    </button>
+                    <button id="ResignButton" class="DangerButton" type="button">
+                        <i data-lucide="flag"></i>
+                        <span>Resign</span>
+                    </button>
+                </div>
+                <div id="PostGameControls" class="Controls Hidden">
+                    <button id="RematchButton" class="SecondaryButton Hidden" type="button">
+                        <i data-lucide="repeat"></i>
+                        <span>Rematch</span>
+                    </button>
+                    <button id="NewGameButton" class="PrimaryButton" type="button">
+                        <i data-lucide="refresh-cw"></i>
+                        <span>New Game</span>
+                    </button>
+                </div>
+                <div id="StatusPanel" class="Hidden"></div>
+                <div id="OpponentBanner" class="Hidden"></div>
+            </aside>
+        </main>
+    </div>
+
+    <!-- Made by D Letten -->
 
     <script src="JS/ChessGame.js"></script>
     <script src="JS/ChessBot.js"></script>
     <script src="JS/Multiplayer.js"></script>
+    <script src="JS/PublicLobby.js"></script>
+    <script src="JS/Physics.js"></script>
+    <script src="JS/Feedback.js"></script>
+    <script src="JS/GameStore.js"></script>
     <script src="JS/Board.js"></script>
     <script src="JS/BotSelector.js"></script>
     <script src="JS/MoveList.js"></script>
@@ -69,5 +79,3 @@
     <script src="JS/Main.js"></script>
 </body>
 </html>
-
-

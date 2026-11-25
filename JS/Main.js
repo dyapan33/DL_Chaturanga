@@ -59,19 +59,37 @@ class Controller {
         this.SandboxTool = 'move';
         this.SandboxPiece = '';
         this.OpponentName = '';
+        this.PublicPlayerName = '';
+        this.PublicGuestTimerId = null;
+        this.ActiveGameId = '';
+        this.ActiveGameCreatedAt = Zero;
+        this.ReviewingGame = null;
+        this.CelebratedVictory = false;
+        this.PlayedEndFeedback = false;
+        this.LastSoundMoveKey = '';
+        this.LastCheckMoveKey = '';
         this.ViewedFrameIndex = Zero;
         this.Game = new ChessGame();
         this.Game.Initialize();
         this.Bot = new ChessBot();
         this.Bot.Initialize();
+        this.Physics = new PhysicsEngine();
+        this.Physics.Initialize();
+        this.Feedback = new FeedbackManager();
+        this.Feedback.Initialize();
+        this.Store = new GameStorageManager();
+        this.Store.Initialize();
         this.Network = new MultiplayerManager();
         this.Network.Initialize((Payload) => this.HandleNetworkEvent(Payload));
+        this.Lobby = new PublicLobbyManager();
+        this.Lobby.Initialize((Payload) => this.HandlePublicLobbyEvent(Payload));
         this.Board = new BoardView();
         this.Board.Initialize(
             'BoardPanel',
             (SquareName) => this.HandleSquareClick(SquareName),
             (FromSquare, ToSquare) => this.HandlePieceDrop(FromSquare, ToSquare)
         );
+        this.Board.SetPhysics(this.Physics);
         this.Moves = new MoveListView();
         this.Moves.Initialize(
             'MoveList',
@@ -91,10 +109,18 @@ class Controller {
                 this.CreateMultiplayerGame(HostColor, HostName, TimeSeconds, IncrementSeconds);
             },
             (CodeOrLink, GuestName) => this.JoinMultiplayerGame(CodeOrLink, GuestName),
-            (PlayerColor) => this.StartSandboxGame(PlayerColor)
+            (PlayerColor) => this.StartSandboxGame(PlayerColor),
+            (PreferredColor, PlayerName, TimeSeconds, IncrementSeconds) => {
+                this.JoinPublicLobbyQueue(PreferredColor, PlayerName, TimeSeconds, IncrementSeconds);
+            },
+            () => this.LeavePublicLobbyQueue()
         );
 
         // Caches references to the collapsible DOM containers and control buttons.
+        this.WorkspaceLayout = document.getElementById('WorkspaceLayout');
+        this.BoardColumnBox = document.getElementById('BoardColumn');
+        this.SavedGamesListBox = document.getElementById('SavedGamesList');
+        this.SidebarLogo = document.getElementById('SidebarLogo');
         this.BotSelectorBox = document.getElementById('BotSelector');
         this.SandboxBox = document.getElementById('SandboxPanel');
         this.MoveListBox = document.getElementById('MoveList');
@@ -111,18 +137,26 @@ class Controller {
         this.DrawButtonText = document.getElementById('DrawButtonText');
         this.ResignButton = document.getElementById('ResignButton');
 
-        // Binds click listeners for New Game, Rematch, Undo, Draw Request, and Resign buttons.
-        document.getElementById('NewGameButton').addEventListener('click', () => {
+        // Binds click listeners for sidebar, New Game, Rematch, Undo, Draw, Resign, and arrow keys.
+        const ReturnToSetup = () => {
             this.ClearRoomQueryFromUrl();
             this.ShowPreGameSetup();
-        });
+        };
+        document.getElementById('NewGameButton').addEventListener('click', ReturnToSetup);
+        if (this.SidebarLogo) {
+            this.SidebarLogo.addEventListener('click', ReturnToSetup);
+        }
         if (this.RematchButton) {
             this.RematchButton.addEventListener('click', () => this.HandleRematchClick());
         }
         this.UndoButton.addEventListener('click', () => this.Undo());
         this.DrawButton.addEventListener('click', () => this.HandleAskForDraw());
         this.ResignButton.addEventListener('click', () => this.HandleResign());
+        if (typeof document !== 'undefined' && document.addEventListener) {
+            document.addEventListener('keydown', (Event) => this.HandleReviewKeydown(Event));
+        }
         this.UpdateRequestButtons();
+        this.RenderSavedGamesSidebar();
         this.RefreshIcons();
     }
 
@@ -149,8 +183,10 @@ class Controller {
     ShowPreGameSetup() {
         // Cancels any pending bot or clock timers, disconnects multiplayer, and resets flags.
         this.ClearBotTimer();
+        this.ClearPublicGuestTimer();
         this.StopClockTimer();
         this.ResetRequestLimits();
+        this.Lobby.LeaveQueue();
         this.Network.Disconnect();
         this.Status.SetRoomCode('');
         this.Status.SetMessage('');
@@ -160,18 +196,32 @@ class Controller {
         this.Selector.ResetMultiplayerState();
         this.Busy = false;
         this.GameStarted = false;
+        this.ReviewingGame = null;
+        this.ActiveGameId = '';
         this.Selected = null;
+        this.CelebratedVictory = false;
+        this.PlayedEndFeedback = false;
+        this.LastSoundMoveKey = '';
+        this.LastCheckMoveKey = '';
+        this.Physics.Reset();
+        this.UpdateEmotiveMood(null);
         this.HidePromotionPicker();
         this.HideDrawOfferPrompt();
 
-        // Resets the board position and renders it without active turn targets.
+        // Resets the board state and hides the board until a game starts or is reviewed.
         this.Board.SetFlipped(false);
         this.Game.Start(DefaultBotElo, '', One, 'w', false);
         this.State = this.Game.GetState();
         this.ViewedFrameIndex = Zero;
         this.Board.ApplyHistoricalFrame(this.State.Frames[Zero]);
+        if (this.BoardColumnBox) {
+            this.BoardColumnBox.classList.add('Hidden');
+        }
+        if (this.WorkspaceLayout) {
+            this.WorkspaceLayout.classList.add('PreGameLayout');
+        }
 
-        // Shows the bot selector and hides status, moves, sandbox, banner, and game buttons.
+        // Shows the setup card and hides status, moves, sandbox, banner, and game buttons.
         this.BotSelectorBox.classList.remove('Hidden');
         if (this.SandboxBox) {
             this.SandboxBox.classList.add('Hidden');
@@ -187,12 +237,15 @@ class Controller {
         this.MoveListBox.classList.add('Hidden');
         this.GameControlsBox.classList.add('Hidden');
         this.PostGameControlsBox.classList.add('Hidden');
+        this.RenderSavedGamesSidebar();
         this.RefreshIcons();
     }
 
     // Starts a game against the AI bot with the selected side color, settings, and clock.
     StartBotGame(Elo, OddsPieces, OddsTimes, PlayerColor, TimeSeconds, IncrementSeconds) {
         // Disconnects any multiplayer session and configures the board orientation and clock.
+        this.ClearPublicGuestTimer();
+        this.Lobby.LeaveQueue();
         this.Network.Disconnect();
         const ChosenColor = PlayerColor || 'w';
         const BotName = GetBotName(Elo);
@@ -211,6 +264,8 @@ class Controller {
     // Starts Sandbox mode where the user controls both sides and can add or remove pieces.
     StartSandboxGame(PlayerColor) {
         // Disconnects multiplayer, initializes Sandbox state, and shows the piece editor.
+        this.ClearPublicGuestTimer();
+        this.Lobby.LeaveQueue();
         this.Network.Disconnect();
         const ChosenColor = PlayerColor || 'w';
         this.SandboxTool = 'move';
@@ -230,6 +285,8 @@ class Controller {
             this.Selector.SetStatusNotice('Please enter your name before creating a game.');
             return;
         }
+        this.ClearPublicGuestTimer();
+        this.Lobby.LeaveQueue();
         const RoomInfo = this.Network.CreateRoom(HostColor || 'w', CleanName, TimeSeconds, IncrementSeconds);
         this.Selector.SetCreatedRoom(RoomInfo);
     }
@@ -242,12 +299,83 @@ class Controller {
             this.Selector.SetStatusNotice('Please enter your name before joining a game.');
             return;
         }
+        this.ClearPublicGuestTimer();
+        this.Lobby.LeaveQueue();
         const Joined = this.Network.JoinRoom(CodeOrLink, CleanName);
         if (!Joined) {
             this.Selector.SetStatusNotice('Invalid room code or link.');
             return;
         }
         this.Selector.SetStatusNotice(`Joining room ${Joined.RoomCode}...`);
+    }
+
+    // Enters the PeerJS public matchmaking queue to pair with a random opponent.
+    JoinPublicLobbyQueue(PreferredColor, PlayerName, TimeSeconds, IncrementSeconds) {
+        // Validates the display name, resets prior connections, and joins the public queue.
+        const CleanName = String(PlayerName || '').trim();
+        if (CleanName === '') {
+            this.Selector.SetPublicStatus('Please enter your name before searching.');
+            return;
+        }
+        this.ClearPublicGuestTimer();
+        this.Network.Disconnect();
+        this.PublicPlayerName = CleanName;
+        this.Selector.SetPublicSearching(true, 'Connecting to public lobby...');
+        this.Lobby.JoinQueue(CleanName, PreferredColor || 'w', TimeSeconds, IncrementSeconds);
+    }
+
+    // Cancels an active public matchmaking search and restores the setup controls.
+    LeavePublicLobbyQueue() {
+        // Clears timers, leaves the PeerJS lobby, and resets the selector UI.
+        this.ClearPublicGuestTimer();
+        this.Lobby.LeaveQueue();
+        this.Selector.SetPublicSearching(false, '');
+    }
+
+    // Clears any pending guest room-join delay timer from a public lobby match.
+    ClearPublicGuestTimer() {
+        // Cancels PublicGuestTimerId if currently scheduled.
+        if (this.PublicGuestTimerId !== null) {
+            clearTimeout(this.PublicGuestTimerId);
+            this.PublicGuestTimerId = null;
+        }
+    }
+
+    // Handles status, error, and match-found events emitted by PublicLobbyManager.
+    HandlePublicLobbyEvent(Payload) {
+        // Updates the searching status text or reports lobby errors.
+        if (!Payload || typeof Payload.Type !== 'string') {
+            return;
+        }
+        if (Payload.Type === 'LobbyStatus') {
+            this.Selector.SetPublicStatus(Payload.Message);
+            return;
+        }
+        if (Payload.Type === 'LobbyError') {
+            this.Selector.SetPublicSearching(false, Payload.Message);
+            return;
+        }
+
+        // Transitions both matched players into an encrypted multiplayer room.
+        if (Payload.Type === 'MatchFound' && typeof Payload.RoomCode === 'string') {
+            const OpponentLabel = String(Payload.OpponentName || '').trim() || 'Opponent';
+            this.Selector.SetPublicSearching(true, `Matched with ${OpponentLabel}! Starting game...`);
+            if (Payload.Role === 'host') {
+                this.Network.CreateRoom(
+                    Payload.Color || 'w',
+                    this.PublicPlayerName || 'Player',
+                    Payload.TimeSeconds,
+                    Payload.IncrementSeconds,
+                    Payload.RoomCode
+                );
+                return;
+            }
+            this.ClearPublicGuestTimer();
+            this.PublicGuestTimerId = setTimeout(() => {
+                this.PublicGuestTimerId = null;
+                this.Network.JoinRoom(Payload.RoomCode, this.PublicPlayerName || 'Player');
+            }, GuestJoinDelayMs);
+        }
     }
 
     // Transitions the UI from the setup screen into an active match session.
@@ -258,8 +386,22 @@ class Controller {
         this.Selector.ResetMultiplayerState();
         this.Busy = false;
         this.GameStarted = true;
+        this.ReviewingGame = null;
+        this.ActiveGameId = this.Store.CreateGameId();
+        this.ActiveGameCreatedAt = Date.now();
+        this.CelebratedVictory = false;
+        this.PlayedEndFeedback = false;
+        this.LastSoundMoveKey = '';
+        this.LastCheckMoveKey = '';
+        this.Physics.Reset();
         this.HidePromotionPicker();
         this.HideDrawOfferPrompt();
+        if (this.BoardColumnBox) {
+            this.BoardColumnBox.classList.remove('Hidden');
+        }
+        if (this.WorkspaceLayout) {
+            this.WorkspaceLayout.classList.remove('PreGameLayout');
+        }
         this.Board.SetFlipped(PlayerColor === 'b');
         this.BotSelectorBox.classList.add('Hidden');
         if (this.SandboxBox) {
@@ -331,6 +473,7 @@ class Controller {
             }
         }
         this.RenderOpponentBanner(this.State);
+        this.UpdateEmotiveMood(this.State);
         this.RefreshIcons();
     }
 
@@ -480,25 +623,42 @@ class Controller {
 
     // Copies the current game's PGN notation to the clipboard.
     CopyPgnToClipboard() {
-        // Generates the PGN string and copies it via BotSelectorView's clipboard helper.
-        if (!this.State) {
+        // Generates the PGN string from the active game or saved review record.
+        const SourceState = this.ReviewingGame || this.State;
+        if (!SourceState) {
             return;
         }
-        const PgnText = this.Game.GeneratePgn() || 'No moves played yet.';
+        let PgnText = '';
+        if (this.ReviewingGame) {
+            const Moves = this.ReviewingGame.SanHistory || this.ReviewingGame.History || [];
+            const Pairs = [];
+            for (let Index = Zero; Index < Moves.length; Index += Two) {
+                const MoveNum = Math.floor(Index / Two) + One;
+                const WhiteMove = Moves[Index];
+                const BlackMove = Index + One < Moves.length ? ` ${Moves[Index + One]}` : '';
+                Pairs.push(`${MoveNum}. ${WhiteMove}${BlackMove}`);
+            }
+            PgnText = Pairs.join(' ') || 'No moves played yet.';
+        } else {
+            PgnText = this.Game.GeneratePgn() || 'No moves played yet.';
+        }
         this.Selector.CopyTextToClipboard(PgnText, 'PGN copied!');
         this.Status.SetMessage('PGN copied to clipboard!');
-        this.Status.Render(this.State);
+        this.Status.Render(SourceState);
     }
 
     // Copies the current board position's FEN string to the clipboard.
     CopyFenToClipboard() {
-        // Reads the current FEN and copies it via BotSelectorView's clipboard helper.
-        if (!this.State) {
+        // Reads the currently viewed frame's FEN string and copies it to the clipboard.
+        const SourceState = this.ReviewingGame || this.State;
+        if (!SourceState) {
             return;
         }
-        this.Selector.CopyTextToClipboard(this.State.Fen, 'FEN copied!');
+        const ActiveFrame = SourceState.Frames && SourceState.Frames[this.ViewedFrameIndex];
+        const FenText = ActiveFrame ? ActiveFrame.Fen : SourceState.Fen;
+        this.Selector.CopyTextToClipboard(FenText, 'FEN copied!');
         this.Status.SetMessage('FEN copied to clipboard!');
-        this.Status.Render(this.State);
+        this.Status.Render(SourceState);
     }
 
     // Builds a row of 6 piece buttons for placing White or Black pieces on the board.
@@ -1147,23 +1307,247 @@ class Controller {
     // Displays a historical move frame on the board without reverting the game.
     SelectHistoryFrame(FrameIndex) {
         // Validates the requested frame index against the recorded frames array.
-        if (!this.State || !this.State.Frames || FrameIndex < Zero || FrameIndex >= this.State.Frames.length) {
+        const SourceState = this.ReviewingGame || this.State;
+        if (!SourceState || !SourceState.Frames || FrameIndex < Zero || FrameIndex >= SourceState.Frames.length) {
             return;
         }
 
         // Updates the viewed frame index and refreshes the move list navigation UI.
         this.HidePromotionPicker();
         this.ViewedFrameIndex = FrameIndex;
-        const LatestIndex = this.State.Frames.length - One;
-        const DisplayMoves = this.State.SanHistory || this.State.History;
+        const LatestIndex = SourceState.Frames.length - One;
+        const DisplayMoves = SourceState.SanHistory || SourceState.History || [];
         this.Moves.Render(DisplayMoves, this.ViewedFrameIndex, LatestIndex);
 
-        // Renders the live interactive board if at the latest frame, or a read-only frame otherwise.
-        if (this.ViewedFrameIndex === LatestIndex) {
+        // Renders a read-only frame during review or historical inspection, or live board at end.
+        if (!this.ReviewingGame && this.ViewedFrameIndex === LatestIndex) {
             this.Board.ApplyState(this.State, this.IsLocalPlayerTurn());
         } else {
-            this.Board.ApplyHistoricalFrame(this.State.Frames[this.ViewedFrameIndex]);
+            this.Board.ApplyHistoricalFrame(SourceState.Frames[this.ViewedFrameIndex]);
         }
+        if (this.Feedback) {
+            this.Feedback.PlayUiTap();
+        }
+    }
+
+    // Steps backward or forward through moves using Left and Right keyboard arrows.
+    HandleReviewKeydown(Event) {
+        // Ignores keystrokes when focused inside a text input or when no game is displayed.
+        if (!Event || (Event.key !== 'ArrowLeft' && Event.key !== 'ArrowRight')) {
+            return;
+        }
+        const ActiveTag = document.activeElement ? document.activeElement.tagName : '';
+        if (ActiveTag === 'INPUT' || ActiveTag === 'TEXTAREA' || ActiveTag === 'SELECT') {
+            return;
+        }
+        const SourceState = this.ReviewingGame || (this.GameStarted ? this.State : null);
+        if (!SourceState || !SourceState.Frames || SourceState.Frames.length <= One) {
+            return;
+        }
+        if (Event.key === 'ArrowLeft' && this.ViewedFrameIndex > Zero) {
+            Event.preventDefault();
+            this.SelectHistoryFrame(this.ViewedFrameIndex - One);
+        } else if (Event.key === 'ArrowRight' && this.ViewedFrameIndex < SourceState.Frames.length - One) {
+            Event.preventDefault();
+            this.SelectHistoryFrame(this.ViewedFrameIndex + One);
+        }
+    }
+
+    // Saves the currently active game to localStorage once at least one move has been played.
+    PersistActiveGame(State) {
+        // Skips saving during review mode or before the opening move is played.
+        if (!this.GameStarted || this.ReviewingGame || !State || !State.History || State.History.length === Zero) {
+            return;
+        }
+        if (!this.ActiveGameId) {
+            this.ActiveGameId = this.Store.CreateGameId();
+            this.ActiveGameCreatedAt = Date.now();
+        }
+        let OpponentLabel = 'Sandbox';
+        let ModeName = 'sandbox';
+        if (State.IsMultiplayer) {
+            OpponentLabel = this.OpponentName || 'Opponent';
+            ModeName = 'multiplayer';
+        } else if (!State.IsSandbox) {
+            OpponentLabel = `${GetBotName(State.BotElo)} (${State.BotElo})`;
+            ModeName = 'bot';
+        }
+        const Record = {
+            Id: this.ActiveGameId,
+            CreatedAt: this.ActiveGameCreatedAt || Date.now(),
+            UpdatedAt: Date.now(),
+            Mode: ModeName,
+            OpponentLabel: OpponentLabel,
+            PlayerColor: State.PlayerColor || 'w',
+            BotElo: State.BotElo || DefaultBotElo,
+            IsMultiplayer: Boolean(State.IsMultiplayer),
+            IsSandbox: Boolean(State.IsSandbox),
+            GameOver: Boolean(State.GameOver),
+            Result: State.Result || '',
+            Turn: State.Turn || 'w',
+            InCheck: Boolean(State.InCheck),
+            LastSpecialText: State.LastSpecialText || '',
+            Fen: State.Fen || '',
+            SanHistory: (State.SanHistory || []).slice(),
+            History: (State.History || []).slice(),
+            Frames: (State.Frames || []).map((Frame) => ({
+                Fen: Frame.Fen,
+                LastMove: Frame.LastMove || null,
+                CheckedKingSquare: Frame.CheckedKingSquare || null,
+                CheckmatedKingSquare: Frame.CheckmatedKingSquare || null
+            }))
+        };
+        this.Store.SaveGame(Record);
+        this.RenderSavedGamesSidebar();
+    }
+
+    // Opens a saved game from localStorage for move-by-move inspection on the board.
+    OpenSavedGame(GameId) {
+        // Loads the saved record and cleanly exits any live game or lobby queue.
+        const Record = this.Store.GetGameById(GameId);
+        if (!Record || !Record.Frames || Record.Frames.length === Zero) {
+            return;
+        }
+        this.ClearBotTimer();
+        this.ClearPublicGuestTimer();
+        this.StopClockTimer();
+        this.Lobby.LeaveQueue();
+        this.Network.Disconnect();
+        this.Physics.Reset();
+        this.HidePromotionPicker();
+        this.HideDrawOfferPrompt();
+        this.Busy = false;
+        this.GameStarted = false;
+        this.ReviewingGame = Record;
+        this.State = Record;
+        this.Selected = null;
+
+        // Reveals the board and review panels while hiding live game action buttons.
+        if (this.BoardColumnBox) {
+            this.BoardColumnBox.classList.remove('Hidden');
+        }
+        if (this.WorkspaceLayout) {
+            this.WorkspaceLayout.classList.remove('PreGameLayout');
+        }
+        this.BotSelectorBox.classList.add('Hidden');
+        if (this.SandboxBox) {
+            this.SandboxBox.classList.add('Hidden');
+        }
+        if (this.OpponentBannerBox) {
+            this.OpponentBannerBox.classList.add('Hidden');
+            this.OpponentBannerBox.innerHTML = '';
+        }
+        this.GameControlsBox.classList.add('Hidden');
+        this.PostGameControlsBox.classList.remove('Hidden');
+        if (this.RematchButton) {
+            this.RematchButton.classList.add('Hidden');
+        }
+        this.StatusBox.classList.remove('Hidden');
+        this.MoveListBox.classList.remove('Hidden');
+
+        // Renders the saved game's final position ready for move-by-move navigation.
+        this.Board.SetFlipped(Record.PlayerColor === 'b');
+        const LatestIndex = Record.Frames.length - One;
+        this.ViewedFrameIndex = LatestIndex;
+        this.Board.ApplyHistoricalFrame(Record.Frames[LatestIndex]);
+        const DisplayMoves = Record.SanHistory && Record.SanHistory.length > Zero ? Record.SanHistory : Record.History;
+        this.Moves.Render(DisplayMoves || [], this.ViewedFrameIndex, LatestIndex);
+        this.Status.SetRoomCode('');
+        this.Status.SetMessage(`Reviewing vs ${Record.OpponentLabel} — use arrows or move list.`);
+        this.Status.Render(Record);
+        this.UpdateEmotiveMood(null);
+        this.RenderSavedGamesSidebar();
+        this.RefreshIcons();
+    }
+
+    // Renders all saved games from localStorage into the left navigation sidebar.
+    RenderSavedGamesSidebar() {
+        // Exits if the sidebar list container is not mounted.
+        if (!this.SavedGamesListBox) {
+            return;
+        }
+        this.SavedGamesListBox.innerHTML = '';
+        const Games = this.Store.LoadGames();
+        if (Games.length === Zero) {
+            const Empty = document.createElement('div');
+            Empty.className = 'SavedGamesEmpty';
+            Empty.textContent = 'No games played yet. Start a match to archive it here.';
+            this.SavedGamesListBox.appendChild(Empty);
+            return;
+        }
+
+        // Builds a clickable card for each saved game with outcome pill and delete control.
+        const HighlightId = this.ReviewingGame ? this.ReviewingGame.Id : this.ActiveGameId;
+        for (let Index = Zero; Index < Games.length; Index += One) {
+            const Item = Games[Index];
+            const Card = this.BuildSavedGameCard(Item, Item.Id === HighlightId);
+            this.SavedGamesListBox.appendChild(Card);
+        }
+    }
+
+    // Builds a single sidebar card representing a saved game in localStorage.
+    BuildSavedGameCard(Record, IsActive) {
+        // Creates the card container, title row, delete button, and outcome metadata.
+        const Card = document.createElement('div');
+        Card.className = IsActive ? 'SavedGameCard ActiveSavedGame' : 'SavedGameCard';
+        const TopRow = document.createElement('div');
+        TopRow.className = 'SavedGameTopRow';
+        const Title = document.createElement('span');
+        Title.className = 'SavedGameTitle';
+        Title.textContent = Record.OpponentLabel || 'Saved Game';
+        const DeleteBtn = document.createElement('button');
+        DeleteBtn.type = 'button';
+        DeleteBtn.className = 'SavedGameDeleteBtn';
+        DeleteBtn.textContent = '×';
+        DeleteBtn.title = 'Delete game';
+        DeleteBtn.addEventListener('click', (Event) => {
+            Event.stopPropagation();
+            this.Store.DeleteGame(Record.Id);
+            if (this.ReviewingGame && this.ReviewingGame.Id === Record.Id) {
+                this.ShowPreGameSetup();
+                return;
+            }
+            this.RenderSavedGamesSidebar();
+        });
+        TopRow.appendChild(Title);
+        TopRow.appendChild(DeleteBtn);
+
+        // Builds the bottom row with outcome badge, move count, and date.
+        const MetaRow = document.createElement('div');
+        MetaRow.className = 'SavedGameMetaRow';
+        const Pill = document.createElement('span');
+        const Outcome = this.ClassifySavedOutcome(Record);
+        Pill.className = `SavedGamePill ${Outcome.ClassName}`;
+        Pill.textContent = Outcome.Label;
+        const MoveCount = Record.History ? Math.ceil(Record.History.length / Two) : Zero;
+        const DateText = this.Store.FormatTimestamp(Record.UpdatedAt || Record.CreatedAt);
+        const Info = document.createElement('span');
+        Info.textContent = `${MoveCount}m · ${DateText}`;
+        MetaRow.appendChild(Pill);
+        MetaRow.appendChild(Info);
+        Card.appendChild(TopRow);
+        Card.appendChild(MetaRow);
+        Card.addEventListener('click', () => {
+            this.OpenSavedGame(Record.Id);
+        });
+        return Card;
+    }
+
+    // Classifies a saved game's outcome into Win, Loss, Draw, or In Progress.
+    ClassifySavedOutcome(Record) {
+        // Checks GameOver and Result text against both bot ("You win") and multiplayer results.
+        if (!Record || !Record.GameOver) {
+            return { Label: 'In Progress', ClassName: '' };
+        }
+        const ResultLower = String(Record.Result || '').toLowerCase();
+        if (ResultLower.includes('draw') || ResultLower.includes('stalemate')) {
+            return { Label: 'Draw', ClassName: 'PillDraw' };
+        }
+        const SideName = Record.PlayerColor === 'b' ? 'black' : 'white';
+        if (ResultLower.includes('you win') || ResultLower.includes(`${SideName} wins`)) {
+            return { Label: 'Win', ClassName: 'PillWin' };
+        }
+        return { Label: 'Loss', ClassName: 'PillLoss' };
     }
 
     // Checks whether it is currently the local human player's turn to move.
@@ -1198,6 +1582,8 @@ class Controller {
         this.Moves.Render(DisplayMoves, this.ViewedFrameIndex, LatestIndex);
         this.Status.Render(NewState);
         this.RenderOpponentBanner(NewState);
+        this.UpdateEmotiveMood(NewState);
+        this.PersistActiveGame(NewState);
         if (NewState.IsSandbox) {
             this.RenderSandboxPanel();
         }
@@ -1378,6 +1764,81 @@ class Controller {
         return Line;
     }
 
+    // Updates ambient board and page mood states based on check, clock urgency, and outcome.
+    UpdateEmotiveMood(State) {
+        // Computes the active emotive mood class and plays matching audio/haptic cues.
+        let NextMood = '';
+        if (this.GameStarted && State) {
+            const HistoryLen = State.History ? State.History.length : Zero;
+            const SoundKey = State.LastMove ? `${HistoryLen}_${State.LastMove}` : '';
+            const IsNewMove = SoundKey !== '' && SoundKey !== this.LastSoundMoveKey;
+            if (IsNewMove) {
+                this.LastSoundMoveKey = SoundKey;
+                const LastSan = (State.SanHistory && State.SanHistory.length > Zero) ? State.SanHistory[State.SanHistory.length - One] : '';
+                const WasCapture = typeof LastSan === 'string' && LastSan.includes('x');
+                if (State.InCheck) {
+                    this.Feedback.PlayCheck();
+                } else if (WasCapture) {
+                    this.Feedback.PlayCapture();
+                } else {
+                    this.Feedback.PlayMove();
+                }
+            }
+            if (State.GameOver) {
+                const ResultLower = String(State.Result || '').toLowerCase();
+                const PlayerSide = State.PlayerColor === 'w' ? 'white' : 'black';
+                if (!State.IsSandbox && (ResultLower.includes('you win') || ResultLower.includes(`${PlayerSide} wins`))) {
+                    NextMood = 'MoodVictory';
+                    if (!this.CelebratedVictory) {
+                        this.CelebratedVictory = true;
+                        this.Board.SpawnVictorySparks();
+                    }
+                    if (!this.PlayedEndFeedback) {
+                        this.PlayedEndFeedback = true;
+                        this.Feedback.PlayVictory();
+                    }
+                } else if (ResultLower.includes('draw') || ResultLower.includes('stalemate')) {
+                    NextMood = 'MoodDraw';
+                    if (!this.PlayedEndFeedback) {
+                        this.PlayedEndFeedback = true;
+                        this.Feedback.PlayDraw();
+                    }
+                } else if (!State.IsSandbox) {
+                    NextMood = 'MoodDefeat';
+                    if (!this.PlayedEndFeedback) {
+                        this.PlayedEndFeedback = true;
+                        this.Feedback.PlayDefeat();
+                    }
+                }
+            } else if (State.InCheck) {
+                NextMood = 'MoodCheck';
+                const CheckKey = `${HistoryLen}_${State.LastMove || ''}`;
+                if (CheckKey !== this.LastCheckMoveKey) {
+                    this.LastCheckMoveKey = CheckKey;
+                    this.Board.TriggerBoardShake();
+                }
+            } else if (this.TimeControlSeconds > Zero) {
+                const ActiveClock = State.Turn === 'w' ? this.WhiteClockSeconds : this.BlackClockSeconds;
+                if (ActiveClock <= LowClockWarningSeconds) {
+                    NextMood = 'MoodUrgent';
+                } else if (!State.IsSandbox && State.Turn === State.PlayerColor) {
+                    NextMood = 'MoodYourTurn';
+                }
+            } else if (!State.IsSandbox && State.Turn === State.PlayerColor) {
+                NextMood = 'MoodYourTurn';
+            }
+        }
+
+        // Applies the computed mood to the board panel and ambient page backdrop.
+        this.Board.SetMood(NextMood);
+        if (typeof document !== 'undefined' && document.body && document.body.classList) {
+            document.body.classList.remove('MoodCheck', 'MoodVictory', 'MoodUrgent', 'MoodDraw');
+            if (NextMood === 'MoodCheck' || NextMood === 'MoodVictory' || NextMood === 'MoodUrgent' || NextMood === 'MoodDraw') {
+                document.body.classList.add(NextMood);
+            }
+        }
+    }
+
     // Handles dropping a dragged piece from FromSquare onto ToSquare.
     HandlePieceDrop(FromSquare, ToSquare) {
         // Ignores drops when not the local player's turn, busy, or viewing historical moves.
@@ -1401,7 +1862,10 @@ class Controller {
         if (this.State.LegalMoves.includes(DirectMove)) {
             this.HidePromotionPicker();
             this.SendMove(DirectMove);
+            return;
         }
+        this.Board.TriggerBoardShake();
+        this.Feedback.PlayIllegal();
     }
 
     // Handles clicks on any of the 64 chess board squares.

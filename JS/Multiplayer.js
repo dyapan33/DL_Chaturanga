@@ -304,10 +304,11 @@ class MultiplayerManager {
     }
 
     // Creates and hosts a new multiplayer room with the host playing HostColor.
-    CreateRoom(HostColor, HostName, TimeSeconds, IncrementSeconds) {
+    CreateRoom(HostColor, HostName, TimeSeconds, IncrementSeconds, PresetRoomCode) {
         // Cleans up any previous session and initializes a new room code and blinded ID.
         this.Disconnect();
-        this.RoomCode = this.GenerateRoomCode();
+        const CleanedPreset = this.ExtractRoomCode(PresetRoomCode);
+        this.RoomCode = CleanedPreset !== '' ? CleanedPreset : this.GenerateRoomCode();
         this.BlindedRoomId = this.DeriveBlindedRoomId(this.RoomCode);
         this.IsHost = true;
         this.MatchStarted = false;

@@ -73,6 +73,13 @@ class MoveListView {
         const NavRow = document.createElement('div');
         NavRow.className = 'HistoryControls';
 
+        // Creates the Start button to jump straight to the opening position.
+        const StartButton = this.CreateIconNavButton('chevrons-left', 'Start', ViewedFrameIndex <= Zero, () => {
+            if (this.OnSelectFrame) {
+                this.OnSelectFrame(Zero);
+            }
+        });
+
         // Creates the Prev button to inspect the previous move without undoing.
         const PrevButton = this.CreateIconNavButton('chevron-left', 'Prev', ViewedFrameIndex <= Zero, () => {
             if (this.OnSelectFrame && ViewedFrameIndex > Zero) {
@@ -88,13 +95,14 @@ class MoveListView {
         });
 
         // Creates the Live button to return immediately to the latest board position.
-        const LiveButton = this.CreateIconNavButton('chevrons-right', 'Live', ViewedFrameIndex >= LatestFrameIndex, () => {
+        const LiveButton = this.CreateIconNavButton('chevrons-right', 'End', ViewedFrameIndex >= LatestFrameIndex, () => {
             if (this.OnSelectFrame) {
                 this.OnSelectFrame(LatestFrameIndex);
             }
         });
 
-        // Appends all three history buttons to the navigation row.
+        // Appends all four history buttons to the navigation row.
+        NavRow.appendChild(StartButton);
         NavRow.appendChild(PrevButton);
         NavRow.appendChild(NextButton);
         NavRow.appendChild(LiveButton);

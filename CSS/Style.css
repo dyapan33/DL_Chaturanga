@@ -1,29 +1,29 @@
 :root {
-    --CanvasBg: rgb(11, 15, 23);
-    --PanelBack: rgb(17, 23, 35);
-    --SurfaceElevated: rgb(23, 31, 47);
-    --PanelBorder: rgb(33, 45, 65);
-    --PanelText: rgb(241, 245, 249);
-    --MutedText: rgb(145, 159, 179);
-    --BoardLight: rgb(229, 235, 243);
-    --BoardDark: rgb(73, 105, 145);
-    --Accent: rgb(33, 120, 255);
-    --AccentHover: rgb(60, 130, 245);
-    --SecondaryAccent: rgb(31, 43, 63);
-    --SecondaryHover: rgb(43, 59, 85);
-    --DangerAccent: rgb(185, 45, 59);
-    --DangerHover: rgb(215, 59, 75);
-    --ActiveMoveBack: rgba(37, 99, 235, 0.25);
-    --SelectedColor: rgba(59, 131, 245, 0.55);
-    --DragHoverColor: rgba(95, 165, 255, 0.45);
-    --LastMoveColor: rgba(59, 131, 245, 0.35);
+    --CanvasBg: rgb(15, 17, 19);
+    --PanelBack: rgb(23, 27, 29);
+    --SurfaceElevated: rgb(31, 37, 39);
+    --PanelBorder: rgb(47, 55, 57);
+    --PanelText: rgb(245, 243, 239);
+    --MutedText: rgb(155, 165, 159);
+    --BoardLight: rgb(235, 237, 225);
+    --BoardDark: rgb(95, 131, 105);
+    --Accent: rgb(31, 155, 105);
+    --AccentHover: rgb(45, 185, 125);
+    --SecondaryAccent: rgb(39, 47, 49);
+    --SecondaryHover: rgb(55, 65, 67);
+    --DangerAccent: rgb(195, 55, 65);
+    --DangerHover: rgb(225, 71, 81);
+    --ActiveMoveBack: rgba(31, 155, 105, 0.29);
+    --SelectedColor: rgba(229, 181, 69, 0.55);
+    --DragHoverColor: rgba(45, 185, 125, 0.45);
+    --LastMoveColor: rgba(229, 181, 69, 0.35);
     --KingCheckBg: rgb(215, 45, 59);
-    --DotColor: rgba(15, 23, 41, 0.35);
+    --DotColor: rgba(15, 23, 19, 0.35);
     --CaptureColor: rgba(215, 45, 59, 0.75);
-    --ArrowStrokeColor: rgba(37, 99, 235, 0.85);
-    --ShadowDark: rgba(0, 0, 0, 0.25);
+    --ArrowStrokeColor: rgba(229, 181, 69, 0.85);
+    --ShadowDark: rgba(0, 0, 0, 0.35);
     --CheckColor: rgb(245, 85, 99);
-    --OverColor: rgb(95, 165, 255);
+    --OverColor: rgb(235, 189, 75);
     --PureWhite: rgb(255, 255, 255);
     --Zero: 0;
     --One: 1;
@@ -54,14 +54,18 @@
     --SectionTitleSize: 15px;
     --CodeFontSize: 20px;
     --LayoutGap: 25px;
-    --ColumnGap: 13px;
+    --ColumnGap: 15px;
     --SideColumnWidth: 350px;
-    --PanelRadius: 10px;
-    --PanelPadding: 15px;
-    --ShadowOffsetY: 3px;
-    --ShadowBlur: 11px;
+    --SidebarWidth: 270px;
+    --PreGameMaxWidth: 450px;
+    --LogoFontSize: 25px;
+    --PhysicsZIndex: 15;
+    --PanelRadius: 21px;
+    --PanelPadding: 19px;
+    --ShadowOffsetY: 5px;
+    --ShadowBlur: 15px;
     --BoardBorderWidth: 1px;
-    --BoardRadius: 7px;
+    --BoardRadius: 15px;
     --OutlineWidth: 3px;
     --OutlineOffset: -3px;
     --DotSize: 17px;
@@ -76,26 +80,26 @@
     --LineMarginTop: 7px;
     --BadgePadY: 5px;
     --BadgePadX: 11px;
-    --BadgeRadius: 5px;
+    --BadgeRadius: 99px;
     --BadgeFontSize: 13px;
     --RowGap: 7px;
     --RowMarginBottom: 13px;
     --ControlBorderWidth: 1px;
-    --ControlRadius: 7px;
-    --ControlPadding: 9px;
+    --ControlRadius: 13px;
+    --ControlPadding: 11px;
     --SelectPadRight: 35px;
     --SelectArrowOffset: 11px;
     --SelectArrowSize: 15px;
-    --SelectArrowIcon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30' fill='none' stroke='rgb(241,245,249)' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='7 11 15 19 23 11'/%3E%3C/svg%3E");
+    --SelectArrowIcon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30' fill='none' stroke='rgb(245,243,239)' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='7 11 15 19 23 11'/%3E%3C/svg%3E");
     --ControlFontSize: 13px;
     --SmallFontSize: 11px;
     --MoveListPadLeft: 23px;
     --MoveListMaxHeight: 230px;
     --MoveItemPadY: 3px;
-    --MoveItemPadX: 7px;
-    --ButtonPad: 9px;
+    --MoveItemPadX: 9px;
+    --ButtonPad: 11px;
     --SmallButtonPad: 7px;
-    --ButtonRadius: 7px;
+    --ButtonRadius: 13px;
     --IconSize: 15px;
     --BrandIconSize: 21px;
     --ArrowStrokeWidth: 9px;
@@ -138,11 +142,33 @@
     --ShakeLeftX: -3px;
     --ShakeRightX: 3px;
     --GlowSpread: 15px;
-    --AccentGlowColor: rgba(59, 131, 245, 0.39);
+    --AccentGlowColor: rgba(45, 185, 125, 0.35);
     --DangerGlowColor: rgba(215, 45, 59, 0.55);
     --CheckPulseColor: rgb(245, 65, 79);
     --HalfOpacity: 0.55;
     --LowOpacity: 0.75;
+    --SpringCurve: cubic-bezier(0.35, 1.55, 0.65, 1);
+    --SmoothCurve: cubic-bezier(0.25, 0.95, 0.35, 1);
+    --VictoryColor: rgb(235, 189, 75);
+    --VictoryGlowColor: rgba(235, 189, 75, 0.45);
+    --UrgentGlowColor: rgba(245, 135, 45, 0.45);
+    --AmbientBlueGlow: rgba(31, 155, 105, 0.15);
+    --AmbientCheckGlow: rgba(215, 45, 59, 0.19);
+    --AmbientVictoryGlow: rgba(245, 195, 65, 0.19);
+    --AmbientUrgentGlow: rgba(245, 135, 45, 0.17);
+    --AmbientDrawGlow: rgba(145, 159, 179, 0.15);
+    --BoardGlowSpread: 25px;
+    --RippleDuration: 450ms;
+    --ThinkDotSize: 5px;
+    --ThinkDotGap: 3px;
+    --ThinkBounceY: -3px;
+    --ThinkDelayOne: 150ms;
+    --ThinkDelayTwo: 300ms;
+    --SparkSize: 7px;
+    --SparkDuration: 1550ms;
+    --SparkTravelY: -55px;
+    --LandLiftY: -5px;
+    --DefeatSaturation: 0.75;
 }
 
 * {
@@ -153,7 +179,8 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
-    background: var(--CanvasBg);
+    background-color: var(--CanvasBg);
+    background-image: radial-gradient(circle at top center, var(--AmbientBlueGlow), transparent var(--StepSeventyPercent));
     color: var(--PanelText);
     min-height: var(--FullHeight);
     display: flex;
@@ -161,6 +188,23 @@ body {
     align-items: center;
     overflow-x: hidden;
     -webkit-tap-highlight-color: transparent;
+    transition: background-image var(--SlowTransition) var(--SmoothCurve);
+}
+
+body.MoodCheck {
+    background-image: radial-gradient(circle at top center, var(--AmbientCheckGlow), transparent var(--StepSeventyPercent));
+}
+
+body.MoodVictory {
+    background-image: radial-gradient(circle at top center, var(--AmbientVictoryGlow), transparent var(--StepSeventyPercent));
+}
+
+body.MoodUrgent {
+    background-image: radial-gradient(circle at top center, var(--AmbientUrgentGlow), transparent var(--StepSeventyPercent));
+}
+
+body.MoodDraw {
+    background-image: radial-gradient(circle at top center, var(--AmbientDrawGlow), transparent var(--StepSeventyPercent));
 }
 
 .Hidden {
@@ -190,53 +234,184 @@ body {
     }
 }
 
-.TopBar {
+.AppShell {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--TopBarGap);
-    padding: var(--TopBarPadY) var(--TopBarPadX);
     width: var(--FullPercent);
-    border-bottom: var(--ControlBorderWidth) solid var(--PanelBorder);
-    background: var(--PanelBack);
-    margin-bottom: var(--LayoutGap);
+    min-height: var(--FullHeight);
+    align-items: stretch;
 }
 
-.BrandGroup {
+.AppSidebar {
+    width: var(--SidebarWidth);
+    flex-shrink: var(--Zero);
+    background: var(--PanelBack);
+    border-right: var(--ControlBorderWidth) solid var(--PanelBorder);
+    padding: var(--PanelPadding);
+    display: flex;
+    flex-direction: column;
+    gap: var(--ColumnGap);
+    position: sticky;
+    top: var(--Zero);
+    height: var(--FullHeight);
+}
+
+.SidebarHeader {
+    padding: var(--CoordOffsetX) var(--Zero);
+}
+
+.SidebarLogo {
+    font-size: var(--LogoFontSize);
+    font-weight: var(--CoordWeight);
+    color: var(--PanelText);
+    letter-spacing: var(--ActivePressY);
+    text-align: center;
+    cursor: pointer;
+    transition: color var(--FastTransition) var(--SmoothCurve);
+}
+
+.SidebarLogo:hover {
+    color: var(--OverColor);
+}
+
+.SidebarDivider {
+    width: var(--FullPercent);
+    height: var(--ControlBorderWidth);
+    background: var(--PanelBorder);
+}
+
+.SidebarGamesHeader {
     display: flex;
     align-items: center;
-    gap: var(--TopBarGap);
-    transition: transform var(--MediumTransition) ease;
+    justify-content: space-between;
+    gap: var(--RowGap);
 }
 
-.BrandGroup:hover {
-    transform: scale(var(--ScaleHoverBtn));
+.SidebarSectionLabel {
+    font-size: var(--SmallFontSize);
+    font-weight: var(--CoordWeight);
+    color: var(--MutedText);
+    text-transform: uppercase;
+    letter-spacing: var(--ActivePressY);
 }
 
-.BrandIcon {
-    width: var(--BrandIconSize);
-    height: var(--BrandIconSize);
+.SavedGamesList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--RowGap);
+    overflow-y: auto;
+    flex: var(--One);
+    padding: var(--RowGap) var(--CoordOffsetX);
+}
+
+.SavedGamesEmpty {
+    font-size: var(--ControlFontSize);
+    color: var(--MutedText);
+    padding: var(--ControlPadding) var(--Zero);
+}
+
+.SavedGameCard {
+    background: var(--SurfaceElevated);
+    border: var(--ControlBorderWidth) solid var(--PanelBorder);
+    border-radius: var(--ControlRadius);
+    padding: var(--ControlPadding);
+    display: flex;
+    flex-direction: column;
+    gap: var(--CoordOffsetX);
+    cursor: pointer;
+    transition: transform var(--FastTransition) var(--SpringCurve), border-color var(--FastTransition) var(--SmoothCurve), box-shadow var(--FastTransition) var(--SmoothCurve), background-color var(--FastTransition) var(--SmoothCurve);
+}
+
+.SavedGameCard:hover {
+    border-color: var(--AccentHover);
+    background: var(--SecondaryAccent);
+    transform: translateY(var(--SmallLiftY));
+    box-shadow: var(--Zero) var(--CoordOffsetY) var(--RowGap) var(--ShadowDark);
+}
+
+.SavedGameCard.ActiveSavedGame {
+    border-color: var(--OverColor);
+    box-shadow: inset var(--Zero) var(--Zero) var(--Zero) var(--ActivePressY) var(--OverColor);
+}
+
+.SavedGameTopRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--RowGap);
+}
+
+.SavedGameTitle {
+    font-size: var(--ControlFontSize);
+    font-weight: var(--CoordWeight);
+    color: var(--PanelText);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.SavedGameDeleteBtn {
+    background: transparent;
+    border: none;
+    color: var(--MutedText);
+    font-size: var(--ControlFontSize);
+    cursor: pointer;
+    padding: var(--Zero) var(--CoordOffsetY);
+    border-radius: var(--BadgeRadius);
+    transition: color var(--FastTransition) ease, transform var(--FastTransition) var(--SpringCurve);
+}
+
+.SavedGameDeleteBtn:hover {
+    color: var(--CheckColor);
+    transform: scale(var(--ScaleBouncePeak));
+}
+
+.SavedGameMetaRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--RowGap);
+    font-size: var(--SmallFontSize);
+    color: var(--MutedText);
+}
+
+.SavedGamePill {
+    padding: var(--CoordOffsetY) var(--RowGap);
+    border-radius: var(--BadgeRadius);
+    font-size: var(--SmallFontSize);
+    font-weight: var(--CoordWeight);
+    background: var(--PanelBack);
+    color: var(--MutedText);
+}
+
+.SavedGamePill.PillWin {
     color: var(--AccentHover);
 }
 
-.TopBar h1 {
-    font-size: var(--TitleFontSize);
-    font-weight: var(--CoordWeight);
-    transition: color var(--MediumTransition) ease;
+.SavedGamePill.PillLoss {
+    color: var(--CheckColor);
 }
 
-.BrandGroup:hover h1 {
+.SavedGamePill.PillDraw {
     color: var(--OverColor);
 }
 
 .Layout {
+    flex: var(--One);
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     align-items: flex-start;
     gap: var(--LayoutGap);
-    padding: var(--Zero) var(--TopBarPadX) var(--TopBarPadX);
+    padding: var(--TopBarPadX);
     width: var(--FullPercent);
+}
+
+.Layout.PreGameLayout {
+    align-items: center;
+}
+
+.Layout.PreGameLayout .SideColumn {
+    max-width: var(--PreGameMaxWidth);
 }
 
 .BoardColumn {
@@ -245,6 +420,7 @@ body {
     align-items: center;
     gap: var(--ColumnGap);
     max-width: var(--FullPercent);
+    animation: PanelEnter var(--MediumTransition) var(--SpringCurve);
 }
 
 .SideColumn {
@@ -253,6 +429,16 @@ body {
     gap: var(--ColumnGap);
     width: var(--FullPercent);
     max-width: var(--SideColumnWidth);
+    animation: PanelEnter var(--MediumTransition) var(--SpringCurve);
+}
+
+.PhysicsLayer {
+    position: absolute;
+    inset: var(--Zero);
+    width: var(--FullPercent);
+    height: var(--FullPercent);
+    pointer-events: none;
+    z-index: var(--PhysicsZIndex);
 }
 
 .Panel {
@@ -262,7 +448,108 @@ body {
     padding: var(--PanelPadding);
     box-shadow: var(--Zero) var(--ShadowOffsetY) var(--ShadowBlur) var(--ShadowDark);
     width: var(--FullPercent);
-    transition: border-color var(--MediumTransition) ease, box-shadow var(--MediumTransition) ease;
+    transition: border-color var(--MediumTransition) var(--SmoothCurve), box-shadow var(--MediumTransition) var(--SmoothCurve), transform var(--MediumTransition) var(--SpringCurve), filter var(--SlowTransition) var(--SmoothCurve);
+}
+
+@keyframes PanelEnter {
+    0% {
+        opacity: var(--Zero);
+        transform: translateY(var(--SlideDistanceY)) scale(var(--ScaleStartMedium));
+    }
+    100% {
+        opacity: var(--One);
+        transform: translateY(var(--Zero)) scale(var(--One));
+    }
+}
+
+@keyframes BoardShake {
+    0% {
+        transform: translateX(var(--Zero));
+    }
+    25% {
+        transform: translateX(var(--ShakeLeftX));
+    }
+    50% {
+        transform: translateX(var(--ShakeRightX));
+    }
+    75% {
+        transform: translateX(var(--ShakeLeftX));
+    }
+    100% {
+        transform: translateX(var(--Zero));
+    }
+}
+
+@keyframes PieceLand {
+    0% {
+        transform: translateY(var(--LandLiftY)) scale(var(--ScaleBouncePeak));
+    }
+    60% {
+        transform: translateY(var(--ActivePressY)) scale(var(--ScaleStartMedium));
+    }
+    100% {
+        transform: translateY(var(--Zero)) scale(var(--One));
+    }
+}
+
+@keyframes TargetPop {
+    0% {
+        opacity: var(--Zero);
+        transform: scale(var(--Zero));
+    }
+    100% {
+        opacity: var(--One);
+        transform: scale(var(--One));
+    }
+}
+
+@keyframes CaptureRipple {
+    0% {
+        opacity: var(--LowOpacity);
+        transform: scale(var(--ScaleStartSmall));
+    }
+    100% {
+        opacity: var(--Zero);
+        transform: scale(var(--ScaleBouncePeak));
+    }
+}
+
+@keyframes KingCheckPulse {
+    0% {
+        box-shadow: inset var(--Zero) var(--Zero) var(--ShadowBlur) var(--CheckPulseColor);
+    }
+    50% {
+        box-shadow: inset var(--Zero) var(--Zero) var(--BoardGlowSpread) var(--PureWhite);
+    }
+    100% {
+        box-shadow: inset var(--Zero) var(--Zero) var(--ShadowBlur) var(--CheckPulseColor);
+    }
+}
+
+@keyframes ThinkBounce {
+    0% {
+        opacity: var(--HalfOpacity);
+        transform: translateY(var(--Zero));
+    }
+    50% {
+        opacity: var(--One);
+        transform: translateY(var(--ThinkBounceY));
+    }
+    100% {
+        opacity: var(--HalfOpacity);
+        transform: translateY(var(--Zero));
+    }
+}
+
+@keyframes VictorySparkFloat {
+    0% {
+        opacity: var(--One);
+        transform: translateY(var(--Zero)) scale(var(--One));
+    }
+    100% {
+        opacity: var(--Zero);
+        transform: translateY(var(--SparkTravelY)) scale(var(--Zero));
+    }
 }
 
 .Panel:hover {
@@ -282,6 +569,59 @@ body {
 #BoardPanel .Panel {
     width: auto;
     padding: var(--ControlPadding);
+    position: relative;
+}
+
+#BoardPanel .Panel.MoodYourTurn {
+    border-color: var(--Accent);
+    box-shadow: var(--Zero) var(--ShadowOffsetY) var(--BoardGlowSpread) var(--AccentGlowColor);
+}
+
+#BoardPanel .Panel.MoodCheck {
+    border-color: var(--CheckPulseColor);
+    box-shadow: var(--Zero) var(--Zero) var(--BoardGlowSpread) var(--DangerGlowColor);
+}
+
+#BoardPanel .Panel.MoodUrgent {
+    border-color: var(--CheckColor);
+    box-shadow: var(--Zero) var(--Zero) var(--BoardGlowSpread) var(--UrgentGlowColor);
+}
+
+#BoardPanel .Panel.MoodVictory {
+    border-color: var(--VictoryColor);
+    box-shadow: var(--Zero) var(--Zero) var(--BoardGlowSpread) var(--VictoryGlowColor);
+}
+
+#BoardPanel .Panel.MoodDefeat {
+    filter: saturate(var(--DefeatSaturation));
+}
+
+#BoardPanel .Panel.MoodDraw {
+    border-color: var(--MutedText);
+    box-shadow: var(--Zero) var(--Zero) var(--GlowSpread) var(--AmbientDrawGlow);
+}
+
+#BoardPanel .Panel.BoardShake {
+    animation: BoardShake var(--ShakeDuration) var(--SmoothCurve);
+}
+
+.VictorySparkLayer {
+    position: absolute;
+    inset: var(--Zero);
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: var(--PanelRadius);
+    z-index: var(--Ten);
+}
+
+.VictorySpark {
+    position: absolute;
+    width: var(--SparkSize);
+    height: var(--SparkSize);
+    border-radius: var(--HalfPercent);
+    background: var(--VictoryColor);
+    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--VictoryGlowColor);
+    animation: VictorySparkFloat var(--SparkDuration) var(--SmoothCurve) forwards;
 }
 
 .BoardStage {
@@ -347,6 +687,7 @@ body {
 
 .KingInCheck {
     background: var(--KingCheckBg) !important;
+    animation: KingCheckPulse var(--PulseDuration) ease-in-out infinite;
 }
 
 .DragHover {
@@ -362,7 +703,21 @@ body {
     position: relative;
     z-index: var(--One);
     touch-action: none;
-    transition: transform var(--FastTransition) ease, filter var(--FastTransition) ease, opacity var(--FastTransition) ease;
+    transition: transform var(--FastTransition) var(--SpringCurve), filter var(--FastTransition) var(--SmoothCurve), opacity var(--FastTransition) ease;
+}
+
+.PieceLanded {
+    animation: PieceLand var(--PieceLandDuration) var(--SpringCurve);
+}
+
+.CaptureImpact::before {
+    content: '';
+    position: absolute;
+    inset: var(--CoordOffsetX);
+    border-radius: var(--HalfPercent);
+    border: var(--OutlineWidth) solid var(--CaptureColor);
+    pointer-events: none;
+    animation: CaptureRipple var(--RippleDuration) var(--SmoothCurve) forwards;
 }
 
 .PieceImage:hover {
@@ -434,6 +789,7 @@ body {
     border-radius: var(--HalfPercent);
     background: var(--DotColor);
     position: absolute;
+    animation: TargetPop var(--FastTransition) var(--SpringCurve);
 }
 
 .CaptureHint::after {
@@ -443,6 +799,7 @@ body {
     border-radius: var(--HalfPercent);
     border: var(--CaptureBorder) solid var(--CaptureColor);
     position: absolute;
+    animation: TargetPop var(--FastTransition) var(--SpringCurve);
 }
 
 .Coord {
@@ -506,9 +863,8 @@ body {
     left: var(--CoordOffsetY);
     width: calc(var(--HalfPercent) - var(--CoordOffsetY));
     background: var(--Accent);
-    border-radius: var(--BadgeRadius);
-    box-shadow: var(--Zero) var(--ShadowOffsetY) var(--ShadowBlur) var(--AccentGlowColor);
-    transition: transform var(--MediumTransition) ease;
+    border-radius: var(--ControlRadius);
+    transition: transform var(--MediumTransition) var(--SpringCurve);
     transform: translateX(var(--Zero));
     z-index: var(--Zero);
 }
@@ -523,6 +879,65 @@ body {
 
 .ModeTabs.ThreeTabs.SlideEnd::before {
     transform: translateX(calc(var(--FullPercent) + var(--FullPercent)));
+}
+
+.ModeTabs.FourTabs::before {
+    width: calc((var(--FullPercent) - var(--CoordOffsetY) - var(--CoordOffsetY)) / (var(--Three) + var(--One)));
+}
+
+.ModeTabs.FourTabs.SlideSecond::before {
+    transform: translateX(var(--FullPercent));
+}
+
+.ModeTabs.FourTabs.SlideThird::before {
+    transform: translateX(calc(var(--FullPercent) + var(--FullPercent)));
+}
+
+.ModeTabs.FourTabs.SlideFourth::before {
+    transform: translateX(calc(var(--FullPercent) * var(--Three)));
+}
+
+.ModeTabs.FourTabs .ModeTabButton {
+    flex-direction: column;
+    gap: var(--CoordOffsetY);
+    padding: var(--SmallButtonPad) var(--CoordOffsetY);
+    font-size: var(--SmallFontSize);
+}
+
+@keyframes QueuePulse {
+    0% {
+        opacity: var(--HalfOpacity);
+        transform: scale(var(--ScalePulseMin));
+    }
+    50% {
+        opacity: var(--One);
+        transform: scale(var(--ScalePulseMax));
+    }
+    100% {
+        opacity: var(--HalfOpacity);
+        transform: scale(var(--ScalePulseMin));
+    }
+}
+
+.PublicQueueBox {
+    background: var(--CanvasBg);
+    border: var(--ControlBorderWidth) solid var(--PanelBorder);
+    border-radius: var(--ControlRadius);
+    padding: var(--PanelPadding);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--RowGap);
+    text-align: center;
+}
+
+.PublicQueuePulse {
+    width: var(--CoordOffsetX);
+    height: var(--CoordOffsetX);
+    border-radius: var(--HalfPercent);
+    background: var(--AccentHover);
+    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--AccentGlowColor);
+    animation: QueuePulse var(--PulseDuration) ease-in-out infinite;
 }
 
 .SandboxPieceGrid {
@@ -571,7 +986,7 @@ body {
     flex: var(--One);
     padding: var(--SmallButtonPad);
     border: none;
-    border-radius: var(--BadgeRadius);
+    border-radius: var(--ControlRadius);
     background: transparent;
     color: var(--MutedText);
     font-size: var(--ControlFontSize);
@@ -716,6 +1131,49 @@ body {
     color: var(--PanelText);
     font-weight: var(--MediumWeight);
     font-size: var(--BadgeFontSize);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--RowGap);
+    transition: border-color var(--FastTransition) var(--SmoothCurve), box-shadow var(--FastTransition) var(--SmoothCurve), background-color var(--FastTransition) var(--SmoothCurve);
+}
+
+.BadgeYourTurn {
+    border-color: var(--AccentHover);
+    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--AccentGlowColor);
+}
+
+.BadgeCheck {
+    border-color: var(--CheckPulseColor);
+    color: var(--PureWhite);
+    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--DangerGlowColor);
+}
+
+.BadgeVictory {
+    border-color: var(--VictoryColor);
+    color: var(--VictoryColor);
+    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--VictoryGlowColor);
+}
+
+.ThinkingDots {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ThinkDotGap);
+}
+
+.ThinkingDot {
+    width: var(--ThinkDotSize);
+    height: var(--ThinkDotSize);
+    border-radius: var(--HalfPercent);
+    background: var(--AccentHover);
+    animation: ThinkBounce var(--PulseDuration) ease-in-out infinite;
+}
+
+.ThinkingDotTwo {
+    animation-delay: var(--ThinkDelayOne);
+}
+
+.ThinkingDotThree {
+    animation-delay: var(--ThinkDelayTwo);
 }
 
 .Check {
@@ -940,7 +1398,7 @@ select:focus {
     align-items: center;
     justify-content: center;
     gap: var(--RowGap);
-    transition: transform var(--FastTransition) ease, background-color var(--FastTransition) ease, border-color var(--FastTransition) ease, box-shadow var(--FastTransition) ease, opacity var(--FastTransition) ease;
+    transition: transform var(--FastTransition) var(--SpringCurve), background-color var(--FastTransition) var(--SmoothCurve), border-color var(--FastTransition) var(--SmoothCurve), box-shadow var(--FastTransition) var(--SmoothCurve), opacity var(--FastTransition) ease;
 }
 
 .PrimaryButton {
@@ -1032,13 +1490,25 @@ select:focus {
 }
 
 @media (max-width: 750px) {
-    .TopBar {
-        padding: var(--ControlPadding) var(--PanelPadding);
-        margin-bottom: var(--PanelPadding);
+    .AppShell {
+        flex-direction: column;
+    }
+
+    .AppSidebar {
+        width: var(--FullPercent);
+        height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: var(--ControlBorderWidth) solid var(--PanelBorder);
+        padding: var(--PanelPadding);
+    }
+
+    .SavedGamesList {
+        max-height: var(--MoveListMaxHeight);
     }
 
     .Layout {
-        padding: var(--Zero) var(--ControlPadding) var(--LayoutGap);
+        padding: var(--PanelPadding);
         gap: var(--PanelPadding);
     }
 
@@ -1064,5 +1534,14 @@ select:focus {
 
     .Coord {
         font-size: var(--MobileCoordFontSize);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: var(--Zero) !important;
+        transition-duration: var(--Zero) !important;
     }
 }

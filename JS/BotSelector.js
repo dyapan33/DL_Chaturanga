@@ -27,15 +27,17 @@ const TimeControlOptions = [
     { Key: '600_5', Seconds: RapidTenMinSeconds, Increment: Five, Label: '10 | 5 Rapid (+5s)' }
 ];
 
-// Renders the game setup panel for both Bot and Multiplayer modes.
+// Renders the game setup panel for Bot, Multiplayer, Public Lobby, and Sandbox modes.
 class BotSelectorView {
-    Initialize(MountId, OnStartBotGame, OnCreateRoom, OnJoinRoom, OnStartSandbox) {
+    Initialize(MountId, OnStartBotGame, OnCreateRoom, OnJoinRoom, OnStartSandbox, OnJoinPublicLobby, OnLeavePublicLobby) {
         // Stores DOM mount element, callbacks, and default setup state.
         this.Root = document.getElementById(MountId);
         this.OnStartBotGame = OnStartBotGame;
         this.OnCreateRoom = OnCreateRoom;
         this.OnJoinRoom = OnJoinRoom;
         this.OnStartSandbox = OnStartSandbox;
+        this.OnJoinPublicLobby = OnJoinPublicLobby;
+        this.OnLeavePublicLobby = OnLeavePublicLobby;
         this.Mode = 'bot';
         this.SelectedColor = 'w';
         this.SelectedTimeKey = '0_0';
@@ -43,10 +45,13 @@ class BotSelectorView {
         this.PendingJoinCode = '';
         this.CreatedRoomInfo = null;
         this.StatusNotice = '';
+        this.IsPublicSearching = false;
+        this.PublicStatusNotice = '';
         this.Panel = null;
         this.ModeTabsBox = null;
         this.BotTabBtn = null;
         this.MultiTabBtn = null;
+        this.PublicTabBtn = null;
         this.SandboxTabBtn = null;
         this.SideRow = null;
         this.SideTabsBox = null;
@@ -60,9 +65,16 @@ class BotSelectorView {
         this.Render();
     }
 
-    // Switches the active setup tab between 'bot' and 'multiplayer'.
+    // Switches the active setup tab between bot, multiplayer, public, and sandbox.
     SetMode(ModeName) {
-        // Updates the Mode property and refreshes the setup panel.
+        // Leaves the public queue if the user navigates away from the Public tab while searching.
+        if (this.Mode === 'public' && ModeName !== 'public' && this.IsPublicSearching) {
+            this.IsPublicSearching = false;
+            this.PublicStatusNotice = '';
+            if (this.OnLeavePublicLobby) {
+                this.OnLeavePublicLobby();
+            }
+        }
         this.Mode = ModeName;
         this.Render();
     }
@@ -90,12 +102,31 @@ class BotSelectorView {
         this.Render();
     }
 
+    // Updates the public lobby searching state and status text.
+    SetPublicSearching(IsSearching, NoticeText) {
+        // Stores the searching flag and notice text and re-renders the setup panel.
+        this.IsPublicSearching = Boolean(IsSearching);
+        if (typeof NoticeText === 'string') {
+            this.PublicStatusNotice = NoticeText;
+        }
+        this.Render();
+    }
+
+    // Updates only the public lobby status message without changing the searching flag.
+    SetPublicStatus(NoticeText) {
+        // Stores the updated status string and refreshes the setup panel.
+        this.PublicStatusNotice = NoticeText || '';
+        this.Render();
+    }
+
     // Clears any previously created room code, shareable link, and multiplayer notice.
     ResetMultiplayerState() {
-        // Resets CreatedRoomInfo, PendingJoinCode, and StatusNotice so expired codes are not shown.
+        // Resets CreatedRoomInfo, PendingJoinCode, StatusNotice, and public queue state.
         this.CreatedRoomInfo = null;
         this.PendingJoinCode = '';
         this.StatusNotice = '';
+        this.IsPublicSearching = false;
+        this.PublicStatusNotice = '';
         this.Render();
     }
 
@@ -126,19 +157,23 @@ class BotSelectorView {
 
     // Updates the sliding pill position and active button classes on both segmented controls.
     UpdateSegmentedStates() {
-        // Updates the Vs Bot / Multiplayer / Sandbox segmented control state.
+        // Updates the Vs Bot / Multiplayer / Public / Sandbox segmented control state.
         if (this.ModeTabsBox) {
-            this.ModeTabsBox.classList.remove('SlideRight');
-            this.ModeTabsBox.classList.remove('SlideEnd');
+            this.ModeTabsBox.classList.remove('SlideSecond');
+            this.ModeTabsBox.classList.remove('SlideThird');
+            this.ModeTabsBox.classList.remove('SlideFourth');
             if (this.Mode === 'multiplayer') {
-                this.ModeTabsBox.classList.add('SlideRight');
+                this.ModeTabsBox.classList.add('SlideSecond');
+            } else if (this.Mode === 'public') {
+                this.ModeTabsBox.classList.add('SlideThird');
             } else if (this.Mode === 'sandbox') {
-                this.ModeTabsBox.classList.add('SlideEnd');
+                this.ModeTabsBox.classList.add('SlideFourth');
             }
         }
-        if (this.BotTabBtn && this.MultiTabBtn && this.SandboxTabBtn) {
+        if (this.BotTabBtn && this.MultiTabBtn && this.PublicTabBtn && this.SandboxTabBtn) {
             this.BotTabBtn.className = this.Mode === 'bot' ? 'ModeTabButton ActiveModeTab' : 'ModeTabButton';
             this.MultiTabBtn.className = this.Mode === 'multiplayer' ? 'ModeTabButton ActiveModeTab' : 'ModeTabButton';
+            this.PublicTabBtn.className = this.Mode === 'public' ? 'ModeTabButton ActiveModeTab' : 'ModeTabButton';
             this.SandboxTabBtn.className = this.Mode === 'sandbox' ? 'ModeTabButton ActiveModeTab' : 'ModeTabButton';
         }
 
@@ -175,6 +210,8 @@ class BotSelectorView {
             this.AppendBotControls(this.Panel);
         } else if (this.Mode === 'multiplayer') {
             this.AppendMultiplayerControls(this.Panel);
+        } else if (this.Mode === 'public') {
+            this.AppendPublicControls(this.Panel);
         } else {
             this.AppendSandboxControls(this.Panel);
         }
@@ -185,11 +222,11 @@ class BotSelectorView {
         }
     }
 
-    // Builds the top segmented tab bar switching between Vs Bot, Multiplayer, and Sandbox.
+    // Builds the top segmented tab bar switching between Vs Bot, Multiplayer, Public, and Sandbox.
     BuildModeTabs() {
-        // Creates the segmented tab container and the three mode tab buttons.
+        // Creates the segmented tab container and the four mode tab buttons.
         const Tabs = document.createElement('div');
-        Tabs.className = 'ModeTabs ThreeTabs';
+        Tabs.className = 'ModeTabs FourTabs';
         this.BotTabBtn = this.CreateTabButton('bot', 'Vs Bot', this.Mode === 'bot', () => {
             this.CreatedRoomInfo = null;
             this.StatusNotice = '';
@@ -198,6 +235,11 @@ class BotSelectorView {
         this.MultiTabBtn = this.CreateTabButton('users', 'Multiplayer', this.Mode === 'multiplayer', () => {
             this.SetMode('multiplayer');
         });
+        this.PublicTabBtn = this.CreateTabButton('globe', 'Public', this.Mode === 'public', () => {
+            this.CreatedRoomInfo = null;
+            this.StatusNotice = '';
+            this.SetMode('public');
+        });
         this.SandboxTabBtn = this.CreateTabButton('sliders', 'Sandbox', this.Mode === 'sandbox', () => {
             this.CreatedRoomInfo = null;
             this.StatusNotice = '';
@@ -205,6 +247,7 @@ class BotSelectorView {
         });
         Tabs.appendChild(this.BotTabBtn);
         Tabs.appendChild(this.MultiTabBtn);
+        Tabs.appendChild(this.PublicTabBtn);
         Tabs.appendChild(this.SandboxTabBtn);
         return Tabs;
     }
@@ -400,6 +443,113 @@ class BotSelectorView {
         Row.appendChild(Label);
         Row.appendChild(Input);
         return Row;
+    }
+
+    // Appends the Public Lobby random matchmaking controls to the panel.
+    AppendPublicControls(Panel) {
+        // Creates the container, player name input, and time control selector.
+        const Box = document.createElement('div');
+        Box.className = 'MultiplayerSection';
+        Box.appendChild(this.BuildPublicNameRow());
+        const TimeControlRow = this.BuildTimeControlRow();
+        this.TimeSelect = TimeControlRow.Select;
+        if (this.IsPublicSearching) {
+            TimeControlRow.Select.disabled = true;
+        }
+        Box.appendChild(TimeControlRow.Row);
+
+        // Shows either the active searching box with Cancel or the Find Random Match button.
+        if (this.IsPublicSearching) {
+            const QueueBox = document.createElement('div');
+            QueueBox.className = 'PublicQueueBox';
+            const Pulse = document.createElement('div');
+            Pulse.className = 'PublicQueuePulse';
+            const StatusText = document.createElement('div');
+            StatusText.className = 'HistoryStatus';
+            StatusText.textContent = this.PublicStatusNotice || 'Searching for a random opponent...';
+            const CancelBtn = document.createElement('button');
+            CancelBtn.type = 'button';
+            CancelBtn.className = 'DangerButton';
+            const CancelIcon = document.createElement('i');
+            CancelIcon.setAttribute('data-lucide', 'x');
+            const CancelLabel = document.createElement('span');
+            CancelLabel.textContent = 'Cancel Search';
+            CancelBtn.appendChild(CancelIcon);
+            CancelBtn.appendChild(CancelLabel);
+            CancelBtn.addEventListener('click', () => {
+                if (this.OnLeavePublicLobby) {
+                    this.OnLeavePublicLobby();
+                }
+            });
+            QueueBox.appendChild(Pulse);
+            QueueBox.appendChild(StatusText);
+            QueueBox.appendChild(CancelBtn);
+            Box.appendChild(QueueBox);
+        } else {
+            const FindBtn = document.createElement('button');
+            FindBtn.type = 'button';
+            FindBtn.className = 'PrimaryButton';
+            const ShuffleIcon = document.createElement('i');
+            ShuffleIcon.setAttribute('data-lucide', 'shuffle');
+            const FindLabel = document.createElement('span');
+            FindLabel.textContent = 'Find Random Match';
+            FindBtn.appendChild(ShuffleIcon);
+            FindBtn.appendChild(FindLabel);
+            FindBtn.addEventListener('click', () => {
+                this.TriggerPublicSearch();
+            });
+            Box.appendChild(FindBtn);
+            if (this.PublicStatusNotice) {
+                const Notice = document.createElement('div');
+                Notice.className = 'HistoryStatus';
+                Notice.textContent = this.PublicStatusNotice;
+                Box.appendChild(Notice);
+            }
+        }
+        Panel.appendChild(Box);
+    }
+
+    // Builds the display name input row for Public Lobby random matchmaking.
+    BuildPublicNameRow() {
+        // Creates the label and input field synced with PlayerName.
+        const Row = document.createElement('div');
+        Row.className = 'SelectorRow';
+        const Label = document.createElement('label');
+        Label.textContent = 'Your name (shown to your opponent):';
+        const Input = document.createElement('input');
+        Input.type = 'text';
+        Input.className = 'TextInput';
+        Input.placeholder = 'Enter your name';
+        Input.value = this.PlayerName;
+        Input.disabled = this.IsPublicSearching;
+        Input.addEventListener('input', () => {
+            this.PlayerName = Input.value;
+        });
+        Input.addEventListener('keydown', (Event) => {
+            if (Event && Event.key === 'Enter' && !this.IsPublicSearching) {
+                Event.preventDefault();
+                this.TriggerPublicSearch();
+            }
+        });
+        this.NameInput = Input;
+        Row.appendChild(Label);
+        Row.appendChild(Input);
+        return Row;
+    }
+
+    // Validates the player name and invokes OnJoinPublicLobby with current setup choices.
+    TriggerPublicSearch() {
+        // Reads the display name and selected time control before joining the public queue.
+        const Name = (this.NameInput ? this.NameInput.value : this.PlayerName).trim();
+        this.PlayerName = Name;
+        if (Name === '') {
+            this.SetPublicStatus('Please enter your name before searching.');
+            return;
+        }
+        const TimeConfig = this.GetSelectedTimeControl();
+        if (this.OnJoinPublicLobby) {
+            this.OnJoinPublicLobby(this.SelectedColor, Name, TimeConfig.Seconds, TimeConfig.Increment);
+        }
     }
 
     // Appends the Sandbox mode description and Start Sandbox button to the panel.

@@ -32,8 +32,13 @@ class StatusView {
         const TurnLine = document.createElement('div');
         TurnLine.className = 'Line';
         const Badge = document.createElement('span');
-        Badge.className = 'Badge';
-        Badge.textContent = this.BuildTurnBadgeText(State);
+        Badge.className = this.BuildTurnBadgeClass(State);
+        const BadgeLabel = document.createElement('span');
+        BadgeLabel.textContent = this.BuildTurnBadgeText(State);
+        Badge.appendChild(BadgeLabel);
+        if (!State.GameOver && !State.IsSandbox && State.Turn !== State.PlayerColor) {
+            Badge.appendChild(this.BuildThinkingDots());
+        }
         const OpponentLabel = document.createElement('span');
         const ShowActiveRoom = State.IsMultiplayer && !State.GameOver && this.RoomCode !== '';
         if (State.IsSandbox) {
@@ -64,6 +69,43 @@ class StatusView {
         }
         Panel.appendChild(Detail);
         this.Root.appendChild(Panel);
+    }
+
+    // Computes the emotive styling class for the turn status badge.
+    BuildTurnBadgeClass(State) {
+        // Applies urgent check, victory, or active-turn accent styling.
+        if (State.GameOver) {
+            const ResultText = String(State.Result || '').toLowerCase();
+            const PlayerSide = State.PlayerColor === 'w' ? 'white' : 'black';
+            if (ResultText.includes('you win') || ResultText.includes(`${PlayerSide} wins`)) {
+                return 'Badge BadgeVictory';
+            }
+            return 'Badge';
+        }
+        if (State.InCheck) {
+            return 'Badge BadgeCheck';
+        }
+        if (!State.IsSandbox && State.Turn === State.PlayerColor) {
+            return 'Badge BadgeYourTurn';
+        }
+        return 'Badge';
+    }
+
+    // Builds an animated three-dot thinking indicator for opponent or bot turns.
+    BuildThinkingDots() {
+        // Creates three staggered dots that gently bounce while waiting.
+        const Group = document.createElement('span');
+        Group.className = 'ThinkingDots';
+        const DotOne = document.createElement('span');
+        DotOne.className = 'ThinkingDot';
+        const DotTwo = document.createElement('span');
+        DotTwo.className = 'ThinkingDot ThinkingDotTwo';
+        const DotThree = document.createElement('span');
+        DotThree.className = 'ThinkingDot ThinkingDotThree';
+        Group.appendChild(DotOne);
+        Group.appendChild(DotTwo);
+        Group.appendChild(DotThree);
+        return Group;
     }
 
     // Formats the turn badge text based on PlayerColor, Turn, and game mode.

@@ -22,6 +22,14 @@ const ArrowShortenLength = 15;
 const ArrowHeadLength = 19;
 const ArrowHeadHalfWidth = 11;
 const TouchDragThreshold = 5;
+const BoardShakeMs = 450;
+const VictorySparkCount = 15;
+const VictorySparkCleanupMs = 1750;
+const SparkMinPercent = 10;
+const SparkRangePercent = 80;
+const SparkTopMinPercent = 35;
+const SparkTopRangePercent = 55;
+const SparkDelayStepMs = 70;
 
 // Renders the interactive 8x8 chess board with drag-and-drop, arrows, and coordinates.
 class BoardView {
@@ -47,8 +55,97 @@ class BoardView {
         this.Interactive = false;
         this.ArrowSvgElement = null;
         this.GridElement = null;
+        this.PanelElement = null;
+        this.PhysicsCanvas = null;
+        this.Physics = null;
+        this.BoardMood = '';
+        this.LastAnimatedMoveKey = '';
+        this.AnimateNextMove = false;
+        this.LastMoveWasCapture = false;
+        this.ShakeTimerId = null;
+        this.SparkTimerId = null;
         this.Fen = '';
         this.Render([], null);
+    }
+
+    // Attaches the shared 2D physics engine for piece springs and particle bursts.
+    SetPhysics(PhysicsInstance) {
+        // Stores the physics engine reference and binds the active board canvas.
+        this.Physics = PhysicsInstance;
+        if (this.Physics && this.PhysicsCanvas) {
+            this.Physics.AttachCanvas(this.PhysicsCanvas);
+        }
+    }
+
+    // Updates the ambient emotive mood class on the board container panel.
+    SetMood(MoodClass) {
+        // Stores the active mood class and applies it to PanelElement if mounted.
+        const NextMood = MoodClass || '';
+        const PreviousMood = this.BoardMood;
+        this.BoardMood = NextMood;
+        if (this.PanelElement) {
+            if (PreviousMood) {
+                this.PanelElement.classList.remove(PreviousMood);
+            }
+            if (NextMood) {
+                this.PanelElement.classList.add(NextMood);
+            }
+        }
+    }
+
+    // Plays a brief tactile micro-shake on the board panel for check or illegal move friction.
+    TriggerBoardShake() {
+        // Restarts the BoardShake CSS animation on PanelElement.
+        if (!this.PanelElement) {
+            return;
+        }
+        if (this.ShakeTimerId !== null) {
+            clearTimeout(this.ShakeTimerId);
+            this.ShakeTimerId = null;
+        }
+        this.PanelElement.classList.remove('BoardShake');
+        void this.PanelElement.offsetWidth;
+        this.PanelElement.classList.add('BoardShake');
+        this.ShakeTimerId = setTimeout(() => {
+            this.ShakeTimerId = null;
+            if (this.PanelElement) {
+                this.PanelElement.classList.remove('BoardShake');
+            }
+        }, BoardShakeMs);
+    }
+
+    // Spawns celebratory floating golden particles over the board upon victory.
+    SpawnVictorySparks() {
+        // Launches a physics confetti fountain and a temporary CSS spark overlay.
+        if (this.Physics) {
+            this.Physics.BurstVictory();
+        }
+        if (!this.PanelElement) {
+            return;
+        }
+        if (this.SparkTimerId !== null) {
+            clearTimeout(this.SparkTimerId);
+            this.SparkTimerId = null;
+        }
+        const Layer = document.createElement('div');
+        Layer.className = 'VictorySparkLayer';
+        for (let Index = Zero; Index < VictorySparkCount; Index += One) {
+            const Spark = document.createElement('span');
+            Spark.className = 'VictorySpark';
+            const LeftPos = SparkMinPercent + Math.floor(Math.random() * SparkRangePercent);
+            const TopPos = SparkTopMinPercent + Math.floor(Math.random() * SparkTopRangePercent);
+            Spark.style.left = `${LeftPos}%`;
+            Spark.style.top = `${TopPos}%`;
+            Spark.style.animationDelay = `${Index * SparkDelayStepMs}ms`;
+            Layer.appendChild(Spark);
+        }
+        this.PanelElement.appendChild(Layer);
+        this.SparkTimerId = setTimeout(() => {
+            this.SparkTimerId = null;
+            if (Layer.parentNode) {
+                Layer.parentNode.removeChild(Layer);
+            }
+        }, VictorySparkCleanupMs);
     }
 
     // Sets whether the board is viewed from Black's perspective (flipped).
@@ -66,7 +163,8 @@ class BoardView {
 
         // Creates the outer panel, board stage wrapper, and 8x8 grid element.
         const Panel = document.createElement('div');
-        Panel.className = 'Panel';
+        Panel.className = this.BoardMood ? `Panel ${this.BoardMood}` : 'Panel';
+        this.PanelElement = Panel;
         const Stage = document.createElement('div');
         Stage.className = 'BoardStage';
         Stage.addEventListener('contextmenu', (Event) => Event.preventDefault());
@@ -84,14 +182,36 @@ class BoardView {
             }
         }
 
-        // Creates the SVG arrow layer overlay and attaches the board stage.
+        // Creates the SVG arrow layer and 2D physics canvas overlay.
         this.ArrowSvgElement = this.BuildArrowLayer();
+        this.PhysicsCanvas = document.createElement('canvas');
+        this.PhysicsCanvas.className = 'PhysicsLayer';
         Stage.appendChild(Grid);
         Stage.appendChild(this.ArrowSvgElement);
+        Stage.appendChild(this.PhysicsCanvas);
         Panel.appendChild(Stage);
         Panel.appendChild(this.BuildBoardHintBar());
         this.Root.appendChild(Panel);
+        if (this.Physics) {
+            this.Physics.AttachCanvas(this.PhysicsCanvas);
+        }
         this.RenderArrows();
+        if (this.AnimateNextMove && this.Physics && this.LastMove) {
+            const TargetSq = this.LastMove.slice(Two, Four);
+            const Center = this.SquareToPixelCenter(TargetSq);
+            const NormX = Center.X / BoardPixelSize;
+            const NormY = Center.Y / BoardPixelSize;
+            if (this.LastMoveWasCapture) {
+                this.Physics.BurstCapture(NormX, NormY);
+            } else {
+                this.Physics.BurstMovePuff(NormX, NormY);
+            }
+            if (this.CheckedKingSquare) {
+                const CheckCenter = this.SquareToPixelCenter(this.CheckedKingSquare);
+                this.Physics.BurstCheck(CheckCenter.X / BoardPixelSize, CheckCenter.Y / BoardPixelSize);
+            }
+        }
+        this.AnimateNextMove = false;
     }
 
     // Builds the subtle footer bar beneath the board explaining drag and arrow gestures.
@@ -128,9 +248,12 @@ class BoardView {
         Cell.className = 'Square ' + (IsLight ? 'Light' : 'Dark');
         Cell.dataset.square = SquareName;
 
-        // Applies last-move, selection, and red king-in-check highlight classes.
+        // Applies last-move, selection, capture impact, and red king-in-check highlight classes.
         if (this.LastMove && (this.LastMove.slice(Zero, Two) === SquareName || this.LastMove.slice(Two, Four) === SquareName)) {
             Cell.classList.add('LastMove');
+        }
+        if (this.AnimateNextMove && this.LastMoveWasCapture && this.LastMove && this.LastMove.slice(Two, Four) === SquareName) {
+            Cell.classList.add('CaptureImpact');
         }
         if (this.Selected === SquareName) {
             Cell.classList.add('Selected');
@@ -335,6 +458,19 @@ class BoardView {
 
     // Updates the board view from a live game state object.
     ApplyState(State, AllowMoves) {
+        // Detects newly played moves and captures to trigger spring landing and ripple animations.
+        const HistoryLen = State.History ? State.History.length : Zero;
+        const MoveKey = State.LastMove ? `${HistoryLen}_${State.LastMove}` : '';
+        if (MoveKey !== '' && MoveKey !== this.LastAnimatedMoveKey) {
+            this.LastAnimatedMoveKey = MoveKey;
+            this.AnimateNextMove = true;
+            const LastSan = (State.SanHistory && State.SanHistory.length > Zero) ? State.SanHistory[State.SanHistory.length - One] : '';
+            this.LastMoveWasCapture = typeof LastSan === 'string' && LastSan.includes('x');
+        } else {
+            this.AnimateNextMove = false;
+            this.LastMoveWasCapture = false;
+        }
+
         // Stores FEN, checked/checkmated king squares, and en passant square, then re-renders.
         this.Fen = State.Fen;
         this.CheckedKingSquare = State.CheckedKingSquare || null;
@@ -400,9 +536,22 @@ class BoardView {
             return;
         }
 
-        // Creates the draggable image element and applies the falling animation on checkmate.
+        // Creates the draggable image element and applies spring flight or falling animations.
         const ImageElement = document.createElement('img');
         ImageElement.className = 'PieceImage';
+        if (this.AnimateNextMove && this.LastMove && this.LastMove.slice(Two, Four) === SquareName) {
+            if (this.Physics) {
+                const OriginCenter = this.SquareToPixelCenter(this.LastMove.slice(Zero, Two));
+                const TargetCenter = this.SquareToPixelCenter(SquareName);
+                this.Physics.AnimateSpringPiece(
+                    ImageElement,
+                    OriginCenter.X - TargetCenter.X,
+                    OriginCenter.Y - TargetCenter.Y
+                );
+            } else {
+                ImageElement.classList.add('PieceLanded');
+            }
+        }
         if (this.CheckmatedKingSquare === SquareName) {
             ImageElement.classList.add('CheckmatedKing');
         }
