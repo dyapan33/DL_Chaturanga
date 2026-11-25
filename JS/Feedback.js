@@ -40,9 +40,24 @@ const VibrateDrawMs = 35;
 // Synthesizes tactile Web Audio sound effects and triggers mobile haptic vibrations.
 class FeedbackManager {
     Initialize() {
-        // Initializes lazy AudioContext state and enabled flag.
+        // Initializes lazy AudioContext state and binds early pointer unlock listeners.
         this.AudioCtx = null;
         this.Enabled = true;
+        this.BindEarlyUnlock();
+    }
+
+    // Unlocks Web Audio on the first pointerdown, touchstart, or keydown before click fires.
+    BindEarlyUnlock() {
+        // Attaches one-time gesture listeners so AudioContext is running before the first click.
+        if (typeof document === 'undefined' || typeof document.addEventListener !== 'function') {
+            return;
+        }
+        const Unlock = () => {
+            this.EnsureAudioContext();
+        };
+        document.addEventListener('pointerdown', Unlock, { passive: true });
+        document.addEventListener('touchstart', Unlock, { passive: true });
+        document.addEventListener('keydown', Unlock, { passive: true });
     }
 
     // Lazily creates and resumes the Web Audio API context on user interaction.
@@ -81,13 +96,25 @@ class FeedbackManager {
         }
     }
 
-    // Schedules a single synthesized tone with pitch glide and exponential decay.
+    // Schedules a single synthesized tone, waiting for AudioContext.resume if suspended.
     PlayTone(StartFreq, EndFreq, DelaySec, DurationSec, PeakGain, WaveType) {
-        // Builds an oscillator and gain envelope connected to the audio destination.
+        // Defers tone scheduling until resume resolves so the very first click is never muted.
         const Ctx = this.EnsureAudioContext();
         if (!Ctx) {
             return;
         }
+        if (Ctx.state === 'suspended' && typeof Ctx.resume === 'function') {
+            Ctx.resume()
+                .then(() => this.ScheduleTone(Ctx, StartFreq, EndFreq, DelaySec, DurationSec, PeakGain, WaveType))
+                .catch(() => {});
+            return;
+        }
+        this.ScheduleTone(Ctx, StartFreq, EndFreq, DelaySec, DurationSec, PeakGain, WaveType);
+    }
+
+    // Builds and starts an oscillator with pitch glide and exponential decay on Ctx.
+    ScheduleTone(Ctx, StartFreq, EndFreq, DelaySec, DurationSec, PeakGain, WaveType) {
+        // Connects an oscillator and gain envelope to Ctx.destination.
         const Now = Ctx.currentTime + (DelaySec || Zero);
         const Osc = Ctx.createOscillator();
         const Gain = Ctx.createGain();

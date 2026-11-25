@@ -36,9 +36,9 @@ const SpinSpeedRange = 11;
 const VictoryLaunchY = 0.85;
 const VictorySpreadAngle = 1.15;
 const VictoryUpwardOffset = 1.57;
-const CapturePalette = ['#e5b545', '#35b575', '#f5f3ef'];
+const CapturePalette = ['#e5b545', '#059bfa', '#f5f3ef'];
 const CheckPalette = ['#f55559', '#ff8565', '#f5f3ef'];
-const VictoryPalette = ['#e5b545', '#35b575', '#f5d979', '#65d595', '#f5f3ef'];
+const VictoryPalette = ['#e5b545', '#059bfa', '#f5d979', '#45b5ff', '#f5f3ef'];
 const MovePuffPalette = ['#e5b545', '#b5c5b9'];
 
 // Runs a 2D spring-mass-damper and gravity-particle physics simulation for the board.

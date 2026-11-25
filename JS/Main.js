@@ -168,6 +168,7 @@ class Controller {
         this.ResignButton.addEventListener('click', () => this.HandleResign());
         if (typeof document !== 'undefined' && document.addEventListener) {
             document.addEventListener('keydown', (Event) => this.HandleReviewKeydown(Event));
+            document.addEventListener('click', (Event) => this.HandleGlobalUiClick(Event));
         }
         this.UpdateRequestButtons();
         this.RenderSavedGamesSidebar();
@@ -1339,9 +1340,22 @@ class Controller {
         } else {
             this.Board.ApplyHistoricalFrame(SourceState.Frames[this.ViewedFrameIndex]);
         }
-        if (this.Feedback) {
-            this.Feedback.PlayUiTap();
+    }
+
+    // Plays a tactile UI click sound whenever any interactive UI control is clicked.
+    HandleGlobalUiClick(Event) {
+        // Skips board squares (which use move/capture sounds) and disabled buttons.
+        if (!this.Feedback || !Event || !Event.target || typeof Event.target.closest !== 'function') {
+            return;
         }
+        if (Event.target.closest('.Grid')) {
+            return;
+        }
+        const ClickedControl = Event.target.closest('button, select, input, .SavedGameCard, .SidebarLogo, .MoveToken');
+        if (!ClickedControl || ClickedControl.disabled) {
+            return;
+        }
+        this.Feedback.PlayUiTap();
     }
 
     // Steps backward or forward through moves using Left and Right keyboard arrows.
@@ -1360,9 +1374,11 @@ class Controller {
         }
         if (Event.key === 'ArrowLeft' && this.ViewedFrameIndex > Zero) {
             Event.preventDefault();
+            this.Feedback.PlayUiTap();
             this.SelectHistoryFrame(this.ViewedFrameIndex - One);
         } else if (Event.key === 'ArrowRight' && this.ViewedFrameIndex < SourceState.Frames.length - One) {
             Event.preventDefault();
+            this.Feedback.PlayUiTap();
             this.SelectHistoryFrame(this.ViewedFrameIndex + One);
         }
     }

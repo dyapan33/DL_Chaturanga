@@ -5,17 +5,17 @@
     --PanelBorder: rgb(47, 55, 57);
     --PanelText: rgb(245, 243, 239);
     --MutedText: rgb(155, 165, 159);
-    --BoardLight: rgb(235, 237, 225);
-    --BoardDark: rgb(95, 131, 105);
-    --Accent: rgb(31, 155, 105);
-    --AccentHover: rgb(45, 185, 125);
+    --BoardLight: rgb(225, 237, 249);
+    --BoardDark: rgb(55, 115, 165);
+    --Accent: rgb(5, 155, 250);
+    --AccentHover: rgb(45, 175, 255);
     --SecondaryAccent: rgb(39, 47, 49);
     --SecondaryHover: rgb(55, 65, 67);
     --DangerAccent: rgb(195, 55, 65);
     --DangerHover: rgb(225, 71, 81);
-    --ActiveMoveBack: rgba(31, 155, 105, 0.29);
+    --ActiveMoveBack: rgba(5, 155, 250, 0.25);
     --SelectedColor: rgba(229, 181, 69, 0.55);
-    --DragHoverColor: rgba(45, 185, 125, 0.45);
+    --DragHoverColor: rgba(5, 155, 250, 0.45);
     --LastMoveColor: rgba(229, 181, 69, 0.35);
     --KingCheckBg: rgb(215, 45, 59);
     --DotColor: rgba(15, 23, 19, 0.35);
@@ -31,8 +31,8 @@
     --Ten: 10;
     --FullHeight: 100vh;
     --FullPercent: 100%;
+    --NegativeFullPercent: -100%;
     --HalfPercent: 50%;
-    --StepThirtyPercent: 30%;
     --StepSeventyPercent: 70%;
     --MobileSquareScale: 0.125;
     --MobileBoardOffset: 41px;
@@ -47,10 +47,7 @@
     --MobileInputFontSize: 17px;
     --MobileButtonMinWidth: 110px;
     --MobileCoordFontSize: 10px;
-    --TopBarGap: 13px;
-    --TopBarPadY: 17px;
     --TopBarPadX: 30px;
-    --TitleFontSize: 20px;
     --SectionTitleSize: 15px;
     --CodeFontSize: 20px;
     --LayoutGap: 25px;
@@ -61,7 +58,6 @@
     --DrawerBackdropZIndex: 95;
     --MobileMenuOffset: 15px;
     --MobileMenuTopPad: 65px;
-    --NegativeFullPercent: -100%;
     --PreGameMaxWidth: 450px;
     --LogoFontSize: 25px;
     --PhysicsZIndex: 15;
@@ -73,8 +69,6 @@
     --BoardRadius: 15px;
     --OutlineWidth: 3px;
     --OutlineOffset: -3px;
-    --DotSize: 17px;
-    --CaptureSize: 57px;
     --CaptureBorder: 5px;
     --CoordFontSize: 10px;
     --CoordWeight: 700;
@@ -122,32 +116,26 @@
     --MediumTransition: 250ms;
     --SlowTransition: 390ms;
     --PulseDuration: 1750ms;
-    --FloatDuration: 2950ms;
     --ShakeDuration: 450ms;
     --PieceLandDuration: 270ms;
     --HoverLiftY: -3px;
     --SmallLiftY: -1px;
     --ActivePressY: 1px;
     --SlideDistanceY: 11px;
-    --SlideDistanceX: -9px;
-    --HeaderSlideY: -19px;
     --ModalSlideY: 17px;
     --ScaleStartSmall: 0.85;
     --ScaleStartMedium: 0.95;
     --ScaleStartModal: 0.91;
     --ScaleBouncePeak: 1.15;
-    --ScaleSubtlePeak: 1.05;
     --ScaleHoverBtn: 1.03;
     --ScaleActiveBtn: 0.97;
     --ScalePieceHover: 1.09;
     --ScalePulseMin: 0.89;
     --ScalePulseMax: 1.11;
-    --BrandTiltAngle: -9deg;
-    --BrandFloatAngle: 7deg;
     --ShakeLeftX: -3px;
     --ShakeRightX: 3px;
     --GlowSpread: 15px;
-    --AccentGlowColor: rgba(45, 185, 125, 0.35);
+    --AccentGlowColor: rgba(5, 155, 250, 0.35);
     --DangerGlowColor: rgba(215, 45, 59, 0.55);
     --CheckPulseColor: rgb(245, 65, 79);
     --HalfOpacity: 0.55;
@@ -157,7 +145,7 @@
     --VictoryColor: rgb(235, 189, 75);
     --VictoryGlowColor: rgba(235, 189, 75, 0.45);
     --UrgentGlowColor: rgba(245, 135, 45, 0.45);
-    --AmbientBlueGlow: rgba(31, 155, 105, 0.15);
+    --AmbientBlueGlow: rgba(5, 155, 250, 0.15);
     --AmbientCheckGlow: rgba(215, 45, 59, 0.19);
     --AmbientVictoryGlow: rgba(245, 195, 65, 0.19);
     --AmbientUrgentGlow: rgba(245, 135, 45, 0.17);
@@ -239,236 +227,6 @@ body.MoodDraw {
     }
 }
 
-.AppShell {
-    display: flex;
-    width: var(--FullPercent);
-    min-height: var(--FullHeight);
-    align-items: stretch;
-}
-
-.AppSidebar {
-    width: var(--SidebarWidth);
-    flex-shrink: var(--Zero);
-    background: var(--PanelBack);
-    border-right: var(--ControlBorderWidth) solid var(--PanelBorder);
-    padding: var(--PanelPadding);
-    display: flex;
-    flex-direction: column;
-    gap: var(--ColumnGap);
-    position: sticky;
-    top: var(--Zero);
-    height: var(--FullHeight);
-}
-
-.SidebarHeader {
-    padding: var(--CoordOffsetX) var(--Zero);
-    position: relative;
-}
-
-.MobileMenuButton {
-    display: none;
-}
-
-.SidebarCloseButton {
-    display: none;
-}
-
-.SidebarBackdrop {
-    display: none;
-}
-
-.SidebarLogo {
-    font-size: var(--LogoFontSize);
-    font-weight: var(--CoordWeight);
-    color: var(--PanelText);
-    letter-spacing: var(--ActivePressY);
-    text-align: center;
-    cursor: pointer;
-    transition: color var(--FastTransition) var(--SmoothCurve);
-}
-
-.SidebarLogo:hover {
-    color: var(--OverColor);
-}
-
-.SidebarDivider {
-    width: var(--FullPercent);
-    height: var(--ControlBorderWidth);
-    background: var(--PanelBorder);
-}
-
-.SidebarGamesHeader {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--RowGap);
-}
-
-.SidebarSectionLabel {
-    font-size: var(--SmallFontSize);
-    font-weight: var(--CoordWeight);
-    color: var(--MutedText);
-    text-transform: uppercase;
-    letter-spacing: var(--ActivePressY);
-}
-
-.SavedGamesList {
-    display: flex;
-    flex-direction: column;
-    gap: var(--RowGap);
-    overflow-y: auto;
-    flex: var(--One);
-    padding: var(--RowGap) var(--CoordOffsetX);
-}
-
-.SavedGamesEmpty {
-    font-size: var(--ControlFontSize);
-    color: var(--MutedText);
-    padding: var(--ControlPadding) var(--Zero);
-}
-
-.SavedGameCard {
-    background: var(--SurfaceElevated);
-    border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    border-radius: var(--ControlRadius);
-    padding: var(--ControlPadding);
-    display: flex;
-    flex-direction: column;
-    gap: var(--CoordOffsetX);
-    cursor: pointer;
-    transition: transform var(--FastTransition) var(--SpringCurve), border-color var(--FastTransition) var(--SmoothCurve), box-shadow var(--FastTransition) var(--SmoothCurve), background-color var(--FastTransition) var(--SmoothCurve);
-}
-
-.SavedGameCard:hover {
-    border-color: var(--AccentHover);
-    background: var(--SecondaryAccent);
-    transform: translateY(var(--SmallLiftY));
-    box-shadow: var(--Zero) var(--CoordOffsetY) var(--RowGap) var(--ShadowDark);
-}
-
-.SavedGameCard.ActiveSavedGame {
-    border-color: var(--OverColor);
-    box-shadow: inset var(--Zero) var(--Zero) var(--Zero) var(--ActivePressY) var(--OverColor);
-}
-
-.SavedGameTopRow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--RowGap);
-}
-
-.SavedGameTitle {
-    font-size: var(--ControlFontSize);
-    font-weight: var(--CoordWeight);
-    color: var(--PanelText);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.SavedGameDeleteBtn {
-    background: transparent;
-    border: none;
-    color: var(--MutedText);
-    font-size: var(--ControlFontSize);
-    cursor: pointer;
-    padding: var(--Zero) var(--CoordOffsetY);
-    border-radius: var(--BadgeRadius);
-    transition: color var(--FastTransition) ease, transform var(--FastTransition) var(--SpringCurve);
-}
-
-.SavedGameDeleteBtn:hover {
-    color: var(--CheckColor);
-    transform: scale(var(--ScaleBouncePeak));
-}
-
-.SavedGameMetaRow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--RowGap);
-    font-size: var(--SmallFontSize);
-    color: var(--MutedText);
-}
-
-.SavedGamePill {
-    padding: var(--CoordOffsetY) var(--RowGap);
-    border-radius: var(--BadgeRadius);
-    font-size: var(--SmallFontSize);
-    font-weight: var(--CoordWeight);
-    background: var(--PanelBack);
-    color: var(--MutedText);
-}
-
-.SavedGamePill.PillWin {
-    color: var(--AccentHover);
-}
-
-.SavedGamePill.PillLoss {
-    color: var(--CheckColor);
-}
-
-.SavedGamePill.PillDraw {
-    color: var(--OverColor);
-}
-
-.Layout {
-    flex: var(--One);
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: flex-start;
-    gap: var(--LayoutGap);
-    padding: var(--TopBarPadX);
-    width: var(--FullPercent);
-}
-
-.Layout.PreGameLayout {
-    align-items: center;
-}
-
-.Layout.PreGameLayout .SideColumn {
-    max-width: var(--PreGameMaxWidth);
-}
-
-.BoardColumn {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--ColumnGap);
-    max-width: var(--FullPercent);
-    animation: PanelEnter var(--MediumTransition) var(--SpringCurve);
-}
-
-.SideColumn {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ColumnGap);
-    width: var(--FullPercent);
-    max-width: var(--SideColumnWidth);
-    animation: PanelEnter var(--MediumTransition) var(--SpringCurve);
-}
-
-.PhysicsLayer {
-    position: absolute;
-    inset: var(--Zero);
-    width: var(--FullPercent);
-    height: var(--FullPercent);
-    pointer-events: none;
-    z-index: var(--PhysicsZIndex);
-}
-
-.Panel {
-    background: var(--PanelBack);
-    border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    border-radius: var(--PanelRadius);
-    padding: var(--PanelPadding);
-    box-shadow: var(--Zero) var(--ShadowOffsetY) var(--ShadowBlur) var(--ShadowDark);
-    width: var(--FullPercent);
-    transition: border-color var(--MediumTransition) var(--SmoothCurve), box-shadow var(--MediumTransition) var(--SmoothCurve), transform var(--MediumTransition) var(--SpringCurve), filter var(--SlowTransition) var(--SmoothCurve);
-}
-
 @keyframes PanelEnter {
     0% {
         opacity: var(--Zero);
@@ -544,6 +302,21 @@ body.MoodDraw {
     }
 }
 
+@keyframes KingFall {
+    0% {
+        transform: rotate(var(--Zero));
+    }
+    30% {
+        transform: rotate(var(--FallWobbleAngle));
+    }
+    70% {
+        transform: rotate(var(--FallMidAngle));
+    }
+    100% {
+        transform: rotate(var(--FallFinalAngle));
+    }
+}
+
 @keyframes ThinkBounce {
     0% {
         opacity: var(--HalfOpacity);
@@ -570,358 +343,6 @@ body.MoodDraw {
     }
 }
 
-.Panel:hover {
-    border-color: var(--SecondaryHover);
-}
-
-.Panel h3 {
-    font-size: var(--SectionTitleSize);
-    font-weight: var(--CoordWeight);
-    margin-bottom: var(--RowMarginBottom);
-    display: flex;
-    align-items: center;
-    gap: var(--RowGap);
-    color: var(--PanelText);
-}
-
-#BoardPanel .Panel {
-    width: auto;
-    padding: var(--ControlPadding);
-    position: relative;
-}
-
-#BoardPanel .Panel.MoodYourTurn {
-    border-color: var(--Accent);
-    box-shadow: var(--Zero) var(--ShadowOffsetY) var(--BoardGlowSpread) var(--AccentGlowColor);
-}
-
-#BoardPanel .Panel.MoodCheck {
-    border-color: var(--CheckPulseColor);
-    box-shadow: var(--Zero) var(--Zero) var(--BoardGlowSpread) var(--DangerGlowColor);
-}
-
-#BoardPanel .Panel.MoodUrgent {
-    border-color: var(--CheckColor);
-    box-shadow: var(--Zero) var(--Zero) var(--BoardGlowSpread) var(--UrgentGlowColor);
-}
-
-#BoardPanel .Panel.MoodVictory {
-    border-color: var(--VictoryColor);
-    box-shadow: var(--Zero) var(--Zero) var(--BoardGlowSpread) var(--VictoryGlowColor);
-}
-
-#BoardPanel .Panel.MoodDefeat {
-    filter: saturate(var(--DefeatSaturation));
-}
-
-#BoardPanel .Panel.MoodDraw {
-    border-color: var(--MutedText);
-    box-shadow: var(--Zero) var(--Zero) var(--GlowSpread) var(--AmbientDrawGlow);
-}
-
-#BoardPanel .Panel.BoardShake {
-    animation: BoardShake var(--ShakeDuration) var(--SmoothCurve);
-}
-
-.VictorySparkLayer {
-    position: absolute;
-    inset: var(--Zero);
-    pointer-events: none;
-    overflow: hidden;
-    border-radius: var(--PanelRadius);
-    z-index: var(--Ten);
-}
-
-.VictorySpark {
-    position: absolute;
-    width: var(--SparkSize);
-    height: var(--SparkSize);
-    border-radius: var(--HalfPercent);
-    background: var(--VictoryColor);
-    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--VictoryGlowColor);
-    animation: VictorySparkFloat var(--SparkDuration) var(--SmoothCurve) forwards;
-}
-
-.BoardStage {
-    position: relative;
-    display: inline-block;
-    touch-action: none;
-}
-
-#BoardPanel .Grid {
-    display: grid;
-    grid-template-columns: var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize);
-    grid-template-rows: var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize) var(--SquareSize);
-    border: var(--BoardBorderWidth) solid var(--PanelBorder);
-    border-radius: var(--BoardRadius);
-    overflow: hidden;
-}
-
-.ArrowLayer {
-    position: absolute;
-    top: var(--Zero);
-    left: var(--Zero);
-    width: var(--FullPercent);
-    height: var(--FullPercent);
-    pointer-events: none;
-    z-index: var(--Ten);
-}
-
-.ArrowLine {
-    stroke: var(--ArrowStrokeColor);
-    stroke-width: var(--ArrowStrokeWidth);
-    stroke-linecap: round;
-}
-
-.ArrowHeadPath {
-    fill: var(--ArrowStrokeColor);
-}
-
-.Square {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    user-select: none;
-    position: relative;
-    transition: background-color var(--FastTransition) ease;
-}
-
-.Light {
-    background: var(--BoardLight);
-}
-
-.Dark {
-    background: var(--BoardDark);
-}
-
-.LastMove {
-    background: var(--LastMoveColor);
-}
-
-.Selected {
-    background: var(--SelectedColor);
-}
-
-.KingInCheck {
-    background: var(--KingCheckBg) !important;
-    animation: KingCheckPulse var(--PulseDuration) ease-in-out infinite;
-}
-
-.DragHover {
-    outline: var(--OutlineWidth) solid var(--AccentHover);
-    outline-offset: var(--OutlineOffset);
-}
-
-.PieceImage {
-    width: var(--PieceImagePercent);
-    height: var(--PieceImagePercent);
-    cursor: grab;
-    user-select: none;
-    position: relative;
-    z-index: var(--One);
-    touch-action: none;
-    transition: transform var(--FastTransition) var(--SpringCurve), filter var(--FastTransition) var(--SmoothCurve), opacity var(--FastTransition) ease;
-}
-
-.PieceLanded {
-    animation: PieceLand var(--PieceLandDuration) var(--SpringCurve);
-}
-
-.CaptureImpact::before {
-    content: '';
-    position: absolute;
-    inset: var(--CoordOffsetX);
-    border-radius: var(--HalfPercent);
-    border: var(--OutlineWidth) solid var(--CaptureColor);
-    pointer-events: none;
-    animation: CaptureRipple var(--RippleDuration) var(--SmoothCurve) forwards;
-}
-
-.PieceImage:hover {
-    transform: translateY(var(--HoverLiftY)) scale(var(--ScalePieceHover));
-    filter: drop-shadow(var(--Zero) var(--ShadowOffsetY) var(--CoordOffsetX) var(--ShadowDark));
-}
-
-.PieceImage:active {
-    cursor: grabbing;
-    transform: scale(var(--ScaleBouncePeak));
-}
-
-.Dragging {
-    opacity: var(--DraggingOpacity);
-}
-
-@keyframes KingFall {
-    0% {
-        transform: rotate(var(--Zero));
-    }
-    30% {
-        transform: rotate(var(--FallWobbleAngle));
-    }
-    70% {
-        transform: rotate(var(--FallMidAngle));
-    }
-    100% {
-        transform: rotate(var(--FallFinalAngle));
-    }
-}
-
-.CheckmatedKing {
-    transform-origin: center center;
-    animation: KingFall var(--FallDuration) ease-in-out forwards;
-}
-
-#DrawOfferPanel {
-    position: fixed;
-    top: var(--Zero);
-    left: var(--Zero);
-    width: var(--FullPercent);
-    height: var(--FullHeight);
-    background: var(--ModalBackdropBg);
-    backdrop-filter: blur(var(--ModalBlurRadius));
-    -webkit-backdrop-filter: blur(var(--ModalBlurRadius));
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: var(--ModalZIndex);
-    padding: var(--PanelPadding);
-    animation: ModalBackdropFade var(--FastTransition) ease-out;
-}
-
-#DrawOfferPanel .Panel {
-    max-width: var(--ModalMaxWidth);
-    text-align: center;
-    animation: ModalCardPop var(--MediumTransition) ease-out;
-    box-shadow: var(--Zero) var(--ShadowBlur) var(--GlowSpread) var(--ShadowDark);
-}
-
-#DrawOfferPanel .Panel h3 {
-    justify-content: center;
-}
-
-.Dot::after {
-    content: '';
-    width: var(--DotPercent);
-    height: var(--DotPercent);
-    border-radius: var(--HalfPercent);
-    background: var(--DotColor);
-    position: absolute;
-    animation: TargetPop var(--FastTransition) var(--SpringCurve);
-}
-
-.CaptureHint::after {
-    content: '';
-    width: var(--CapturePercent);
-    height: var(--CapturePercent);
-    border-radius: var(--HalfPercent);
-    border: var(--CaptureBorder) solid var(--CaptureColor);
-    position: absolute;
-    animation: TargetPop var(--FastTransition) var(--SpringCurve);
-}
-
-.Coord {
-    position: absolute;
-    font-size: var(--CoordFontSize);
-    font-weight: var(--CoordWeight);
-    pointer-events: none;
-    line-height: var(--One);
-}
-
-.CoordRank {
-    top: var(--CoordOffsetY);
-    left: var(--CoordOffsetX);
-}
-
-.CoordFile {
-    bottom: var(--CoordOffsetY);
-    right: var(--CoordOffsetX);
-}
-
-.Light .Coord {
-    color: var(--BoardDark);
-}
-
-.Dark .Coord {
-    color: var(--BoardLight);
-}
-
-.KingInCheck .Coord {
-    color: var(--PureWhite);
-}
-
-.BoardHintBar {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--CoordOffsetX);
-    margin-top: var(--RowGap);
-    font-size: var(--SmallFontSize);
-    color: var(--MutedText);
-    padding: var(--Zero) var(--CoordOffsetY);
-}
-
-.ModeTabs {
-    position: relative;
-    display: flex;
-    margin-bottom: var(--RowMarginBottom);
-    background: var(--CanvasBg);
-    padding: var(--CoordOffsetY);
-    border-radius: var(--ControlRadius);
-    border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    overflow: hidden;
-}
-
-.ModeTabs::before {
-    content: '';
-    position: absolute;
-    top: var(--CoordOffsetY);
-    bottom: var(--CoordOffsetY);
-    left: var(--CoordOffsetY);
-    width: calc(var(--HalfPercent) - var(--CoordOffsetY));
-    background: var(--Accent);
-    border-radius: var(--ControlRadius);
-    transition: transform var(--MediumTransition) var(--SpringCurve);
-    transform: translateX(var(--Zero));
-    z-index: var(--Zero);
-}
-
-.ModeTabs.SlideRight::before {
-    transform: translateX(var(--FullPercent));
-}
-
-.ModeTabs.ThreeTabs::before {
-    width: calc((var(--FullPercent) - var(--CoordOffsetY) - var(--CoordOffsetY)) / var(--Three));
-}
-
-.ModeTabs.ThreeTabs.SlideEnd::before {
-    transform: translateX(calc(var(--FullPercent) + var(--FullPercent)));
-}
-
-.ModeTabs.FourTabs::before {
-    width: calc((var(--FullPercent) - var(--CoordOffsetY) - var(--CoordOffsetY)) / (var(--Three) + var(--One)));
-}
-
-.ModeTabs.FourTabs.SlideSecond::before {
-    transform: translateX(var(--FullPercent));
-}
-
-.ModeTabs.FourTabs.SlideThird::before {
-    transform: translateX(calc(var(--FullPercent) + var(--FullPercent)));
-}
-
-.ModeTabs.FourTabs.SlideFourth::before {
-    transform: translateX(calc(var(--FullPercent) * var(--Three)));
-}
-
-.ModeTabs.FourTabs .ModeTabButton {
-    flex-direction: column;
-    gap: var(--CoordOffsetY);
-    padding: var(--SmallButtonPad) var(--CoordOffsetY);
-    font-size: var(--SmallFontSize);
-}
-
 @keyframes QueuePulse {
     0% {
         opacity: var(--HalfOpacity);
@@ -937,208 +358,28 @@ body.MoodDraw {
     }
 }
 
-.PublicQueueBox {
-    background: var(--CanvasBg);
+.Panel {
+    background: var(--PanelBack);
     border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    border-radius: var(--ControlRadius);
+    border-radius: var(--PanelRadius);
     padding: var(--PanelPadding);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--RowGap);
-    text-align: center;
+    box-shadow: var(--Zero) var(--ShadowOffsetY) var(--ShadowBlur) var(--ShadowDark);
+    width: var(--FullPercent);
+    transition: border-color var(--MediumTransition) var(--SmoothCurve), box-shadow var(--MediumTransition) var(--SmoothCurve), transform var(--MediumTransition) var(--SpringCurve), filter var(--SlowTransition) var(--SmoothCurve);
 }
 
-.PublicQueuePulse {
-    width: var(--CoordOffsetX);
-    height: var(--CoordOffsetX);
-    border-radius: var(--HalfPercent);
-    background: var(--AccentHover);
-    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--AccentGlowColor);
-    animation: QueuePulse var(--PulseDuration) ease-in-out infinite;
+.Panel:hover {
+    border-color: var(--SecondaryHover);
 }
 
-.SandboxPieceGrid {
-    display: grid;
-    grid-template-columns: repeat(var(--Three), var(--One)fr);
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--CoordOffsetX);
-    margin-bottom: var(--RowMarginBottom);
-}
-
-.SandboxPieceButton {
-    flex: var(--One);
-    padding: var(--CoordOffsetX);
-    border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    border-radius: var(--ControlRadius);
-    background: var(--SurfaceElevated);
-    color: var(--PanelText);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform var(--FastTransition) ease, border-color var(--FastTransition) ease, background-color var(--FastTransition) ease;
-}
-
-.SandboxPieceButton:hover {
-    transform: translateY(var(--SmallLiftY));
-    border-color: var(--AccentHover);
-}
-
-.SandboxPieceButton img {
-    width: var(--SandboxIconSize);
-    height: var(--SandboxIconSize);
-}
-
-.ActiveSandboxTool {
-    background: var(--Accent) !important;
-    border-color: var(--AccentHover) !important;
-    color: var(--PureWhite) !important;
-    box-shadow: var(--Zero) var(--ShadowOffsetY) var(--ShadowBlur) var(--AccentGlowColor);
-}
-
-.ModeTabButton {
-    position: relative;
-    z-index: var(--One);
-    flex: var(--One);
-    padding: var(--SmallButtonPad);
-    border: none;
-    border-radius: var(--ControlRadius);
-    background: transparent;
-    color: var(--MutedText);
-    font-size: var(--ControlFontSize);
-    font-weight: var(--MediumWeight);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--CoordOffsetX);
-    transition: color var(--FastTransition) ease;
-}
-
-.ModeTabButton:hover {
-    color: var(--PureWhite);
-}
-
-.ModeTabButton img {
-    width: var(--SideIconSize);
-    height: var(--SideIconSize);
-}
-
-.ActiveModeTab {
-    color: var(--PureWhite);
-}
-
-.MultiplayerSection {
-    display: flex;
-    flex-direction: column;
-    gap: var(--RowMarginBottom);
-}
-
-.RoomShareBox {
-    background: var(--CanvasBg);
-    border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    border-radius: var(--ControlRadius);
-    padding: var(--ControlPadding);
-    display: flex;
-    flex-direction: column;
-    gap: var(--RowGap);
-}
-
-.RoomCodeDisplay {
-    font-size: var(--CodeFontSize);
+.Panel h3 {
+    font-size: var(--SectionTitleSize);
     font-weight: var(--CoordWeight);
-    color: var(--OverColor);
-    letter-spacing: var(--CoordOffsetY);
-    text-align: center;
-    padding: var(--CoordOffsetY) var(--Zero);
-}
-
-.InlineInputRow {
+    margin-bottom: var(--RowMarginBottom);
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--RowGap);
-}
-
-.TextInput {
-    flex: var(--One);
-    background: var(--SurfaceElevated);
-    color: var(--PanelText);
-    border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    border-radius: var(--ControlRadius);
-    padding: var(--ControlPadding);
-    font-size: var(--ControlFontSize);
-    transition: border-color var(--FastTransition) ease, box-shadow var(--FastTransition) ease;
-}
-
-.TextInput:focus {
-    outline: none;
-    border-color: var(--AccentHover);
-    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--AccentGlowColor);
-}
-
-.DividerLabel {
-    text-align: center;
-    font-size: var(--SmallFontSize);
-    color: var(--MutedText);
-    margin: var(--CoordOffsetY) var(--Zero);
-}
-
-.PromotionChoices {
-    display: flex;
-    gap: var(--RowGap);
-    margin-top: var(--LineMarginTop);
-}
-
-.PromotionButton {
-    flex: var(--One);
-    padding: var(--SmallButtonPad);
-    border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    border-radius: var(--ButtonRadius);
-    background: var(--SurfaceElevated);
-    color: var(--PanelText);
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: var(--CoordOffsetY);
-    transition: transform var(--FastTransition) ease, background-color var(--FastTransition) ease, border-color var(--FastTransition) ease, box-shadow var(--FastTransition) ease;
-}
-
-.PromotionButton img {
-    width: var(--PromoImageSize);
-    height: var(--PromoImageSize);
-    transition: transform var(--FastTransition) ease;
-}
-
-.PromotionButton span {
-    font-size: var(--SmallFontSize);
-    font-weight: var(--MediumWeight);
-}
-
-.PromotionButton:hover {
-    background: var(--Accent);
-    border-color: var(--AccentHover);
-    transform: translateY(var(--HoverLiftY)) scale(var(--ScaleHoverBtn));
-    box-shadow: var(--Zero) var(--ShadowOffsetY) var(--ShadowBlur) var(--AccentGlowColor);
-}
-
-.PromotionButton:hover img {
-    transform: scale(var(--ScaleBouncePeak));
-}
-
-#StatusPanel .Line {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--LineGap);
-    font-size: var(--ControlFontSize);
-    color: var(--MutedText);
-}
-
-#StatusPanel .Line + .Line {
-    margin-top: var(--LineMarginTop);
+    gap: var(--RowGap);
+    color: var(--PanelText);
 }
 
 .Badge {
@@ -1241,157 +482,118 @@ select:focus {
     box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--AccentGlowColor);
 }
 
-.HistoryControls {
-    display: flex;
-    gap: var(--RowGap);
-    margin-bottom: var(--RowMarginBottom);
-}
-
-.HistoryStatus {
-    font-size: var(--SmallFontSize);
-    color: var(--OverColor);
-    margin-bottom: var(--RowGap);
-    font-weight: var(--MediumWeight);
-}
-
-#MoveList ol {
-    padding-left: var(--MoveListPadLeft);
-    max-height: var(--MoveListMaxHeight);
-    overflow-y: auto;
-    font-size: var(--ControlFontSize);
-    color: var(--MutedText);
-}
-
-.OpponentBannerCard {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--RowGap);
-    font-size: var(--ControlFontSize);
-    color: var(--MutedText);
-}
-
-.OpponentBannerLeft {
-    display: flex;
-    align-items: center;
-    gap: var(--RowGap);
-}
-
-.OpponentBannerLeft svg {
-    width: var(--IconSize);
-    height: var(--IconSize);
-    color: var(--AccentHover);
-}
-
-.OpponentBannerName {
-    color: var(--PanelText);
-    font-weight: var(--CoordWeight);
-}
-
-.ClockBarRow {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--RowGap);
-    margin-top: var(--LineMarginTop);
-    padding-top: var(--LineMarginTop);
-    border-top: var(--ControlBorderWidth) solid var(--PanelBorder);
-}
-
-.ClockBadge {
-    flex: var(--One);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--BadgePadY) var(--ControlPadding);
-    border-radius: var(--BadgeRadius);
-    background: var(--SurfaceElevated);
-    border: var(--ControlBorderWidth) solid var(--PanelBorder);
-    color: var(--MutedText);
-    font-size: var(--BadgeFontSize);
-    font-weight: var(--MediumWeight);
-}
-
-.ActiveClockBadge {
-    border-color: var(--AccentHover);
-    background: var(--ActiveMoveBack);
-    color: var(--PureWhite);
-    font-weight: var(--CoordWeight);
-}
-
-.LowTimeClockBadge {
-    border-color: var(--CheckColor);
-    color: var(--CheckColor);
-    font-weight: var(--CoordWeight);
-}
-
-.MaterialBarRow {
-    display: flex;
-    flex-direction: column;
-    gap: var(--CoordOffsetX);
-    margin-top: var(--LineMarginTop);
-    padding-top: var(--LineMarginTop);
-    border-top: var(--ControlBorderWidth) solid var(--PanelBorder);
-    font-size: var(--SmallFontSize);
-    color: var(--MutedText);
-}
-
-.MaterialSideLine {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--CoordOffsetX);
-}
-
-.CapturedPiecesGroup {
+.InlineInputRow {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
-    gap: var(--ActivePressY);
+    gap: var(--RowGap);
 }
 
-.CapturedMiniIcon {
-    width: var(--CapturedIconSize);
-    height: var(--CapturedIconSize);
+.TextInput {
+    flex: var(--One);
+    background: var(--SurfaceElevated);
+    color: var(--PanelText);
+    border: var(--ControlBorderWidth) solid var(--PanelBorder);
+    border-radius: var(--ControlRadius);
+    padding: var(--ControlPadding);
+    font-size: var(--ControlFontSize);
+    transition: border-color var(--FastTransition) ease, box-shadow var(--FastTransition) ease;
 }
 
-.MaterialLeadBadge {
-    padding: var(--ActivePressY) var(--CoordOffsetX);
-    border-radius: var(--BadgeRadius);
-    background: var(--ActiveMoveBack);
-    color: var(--OverColor);
-    font-weight: var(--CoordWeight);
+.TextInput:focus {
+    outline: none;
+    border-color: var(--AccentHover);
+    box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--AccentGlowColor);
+}
+
+.DividerLabel {
+    text-align: center;
+    font-size: var(--SmallFontSize);
+    color: var(--MutedText);
+    margin: var(--CoordOffsetY) var(--Zero);
+}
+
+.ModeTabs {
+    position: relative;
+    display: flex;
+    margin-bottom: var(--RowMarginBottom);
+    background: var(--CanvasBg);
+    padding: var(--CoordOffsetY);
+    border-radius: var(--ControlRadius);
+    border: var(--ControlBorderWidth) solid var(--PanelBorder);
+    overflow: hidden;
+}
+
+.ModeTabs::before {
+    content: '';
+    position: absolute;
+    top: var(--CoordOffsetY);
+    bottom: var(--CoordOffsetY);
+    left: var(--CoordOffsetY);
+    width: calc(var(--HalfPercent) - var(--CoordOffsetY));
+    background: var(--Accent);
+    border-radius: var(--ControlRadius);
+    transition: transform var(--MediumTransition) var(--SpringCurve);
+    transform: translateX(var(--Zero));
+    z-index: var(--Zero);
+}
+
+.ModeTabs.SlideRight::before {
+    transform: translateX(var(--FullPercent));
+}
+
+.ModeTabs.FourTabs::before {
+    width: calc((var(--FullPercent) - var(--CoordOffsetY) - var(--CoordOffsetY)) / (var(--Three) + var(--One)));
+}
+
+.ModeTabs.FourTabs.SlideSecond::before {
+    transform: translateX(var(--FullPercent));
+}
+
+.ModeTabs.FourTabs.SlideThird::before {
+    transform: translateX(calc(var(--FullPercent) + var(--FullPercent)));
+}
+
+.ModeTabs.FourTabs.SlideFourth::before {
+    transform: translateX(calc(var(--FullPercent) * var(--Three)));
+}
+
+.ModeTabs.FourTabs .ModeTabButton {
+    flex-direction: column;
+    gap: var(--CoordOffsetY);
+    padding: var(--SmallButtonPad) var(--CoordOffsetY);
     font-size: var(--SmallFontSize);
 }
 
-.ExportBarRow {
-    margin-top: var(--LineMarginTop);
-    margin-bottom: var(--Zero);
-}
-
-.MovePairRow {
-    margin-bottom: var(--CoordOffsetY);
-}
-
-.MoveToken {
-    display: inline-block;
-    padding: var(--MoveItemPadY) var(--MoveItemPadX);
-    border-radius: var(--BadgeRadius);
-    color: var(--PanelText);
+.ModeTabButton {
+    position: relative;
+    z-index: var(--One);
+    flex: var(--One);
+    padding: var(--SmallButtonPad);
+    border: none;
+    border-radius: var(--ControlRadius);
+    background: transparent;
+    color: var(--MutedText);
+    font-size: var(--ControlFontSize);
+    font-weight: var(--MediumWeight);
     cursor: pointer;
-    margin-right: var(--CoordOffsetX);
-    transition: background-color var(--FastTransition) ease, color var(--FastTransition) ease, transform var(--FastTransition) ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--CoordOffsetX);
+    transition: color var(--FastTransition) ease;
 }
 
-.MoveToken:hover {
-    background: var(--SurfaceElevated);
-    transform: translateY(var(--SmallLiftY)) scale(var(--ScaleHoverBtn));
-}
-
-.ActiveMoveToken {
-    background: var(--ActiveMoveBack);
+.ModeTabButton:hover {
     color: var(--PureWhite);
-    font-weight: var(--CoordWeight);
+}
+
+.ModeTabButton img {
+    width: var(--SideIconSize);
+    height: var(--SideIconSize);
+}
+
+.ActiveModeTab {
+    color: var(--PureWhite);
 }
 
 .Controls {
@@ -1464,6 +666,19 @@ select:focus {
     cursor: not-allowed;
 }
 
+.HistoryControls {
+    display: flex;
+    gap: var(--RowGap);
+    margin-bottom: var(--RowMarginBottom);
+}
+
+.HistoryStatus {
+    font-size: var(--SmallFontSize);
+    color: var(--OverColor);
+    margin-bottom: var(--RowGap);
+    font-weight: var(--MediumWeight);
+}
+
 .HistoryButton {
     flex: var(--One);
     padding: var(--SmallButtonPad);
@@ -1491,6 +706,12 @@ select:focus {
     transform: translateY(var(--ActivePressY)) scale(var(--ScaleActiveBtn));
 }
 
+.HistoryButton:disabled {
+    opacity: var(--DisabledOpacity);
+    cursor: default;
+    background: var(--SurfaceElevated);
+}
+
 .PrimaryButton svg,
 .SecondaryButton svg,
 .DangerButton svg,
@@ -1499,136 +720,6 @@ select:focus {
 .Panel h3 svg {
     width: var(--IconSize);
     height: var(--IconSize);
-}
-
-.HistoryButton:disabled {
-    opacity: var(--DisabledOpacity);
-    cursor: default;
-    background: var(--SurfaceElevated);
-}
-
-@media (max-width: 750px) {
-    .AppShell {
-        flex-direction: column;
-    }
-
-    .MobileMenuButton {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        position: fixed;
-        top: var(--MobileMenuOffset);
-        left: var(--MobileMenuOffset);
-        z-index: var(--DrawerBackdropZIndex);
-        padding: var(--ControlPadding);
-        border-radius: var(--ControlRadius);
-        border: var(--ControlBorderWidth) solid var(--PanelBorder);
-        background: var(--PanelBack);
-        color: var(--PanelText);
-        cursor: pointer;
-        box-shadow: var(--Zero) var(--ShadowOffsetY) var(--ShadowBlur) var(--ShadowDark);
-        transition: transform var(--FastTransition) var(--SpringCurve), border-color var(--FastTransition) var(--SmoothCurve);
-    }
-
-    .MobileMenuButton:hover {
-        border-color: var(--AccentHover);
-        transform: scale(var(--ScaleHoverBtn));
-    }
-
-    .MobileMenuButton:active {
-        transform: scale(var(--ScaleActiveBtn));
-    }
-
-    .MobileMenuButton svg {
-        width: var(--BrandIconSize);
-        height: var(--BrandIconSize);
-    }
-
-    .SidebarBackdrop {
-        display: none;
-        position: fixed;
-        inset: var(--Zero);
-        background: var(--ModalBackdropBg);
-        backdrop-filter: blur(var(--ModalBlurRadius));
-        -webkit-backdrop-filter: blur(var(--ModalBlurRadius));
-        z-index: var(--DrawerBackdropZIndex);
-    }
-
-    .SidebarBackdrop.SidebarOpen {
-        display: block;
-    }
-
-    .AppSidebar {
-        position: fixed;
-        top: var(--Zero);
-        left: var(--Zero);
-        width: var(--SidebarWidth);
-        max-width: var(--DrawerMaxWidth);
-        height: var(--FullHeight);
-        z-index: var(--ModalZIndex);
-        border-right: var(--ControlBorderWidth) solid var(--PanelBorder);
-        border-bottom: none;
-        padding: var(--PanelPadding);
-        transform: translateX(var(--NegativeFullPercent));
-        transition: transform var(--MediumTransition) var(--SpringCurve);
-    }
-
-    .AppSidebar.SidebarOpen {
-        transform: translateX(var(--Zero));
-    }
-
-    .SidebarCloseButton {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        position: absolute;
-        top: var(--CoordOffsetX);
-        right: var(--Zero);
-        padding: var(--CoordOffsetX);
-        border-radius: var(--ControlRadius);
-        border: var(--ControlBorderWidth) solid var(--PanelBorder);
-        background: var(--SurfaceElevated);
-        color: var(--PanelText);
-        cursor: pointer;
-    }
-
-    .SidebarCloseButton svg {
-        width: var(--IconSize);
-        height: var(--IconSize);
-    }
-
-    .SavedGamesList {
-        max-height: none;
-    }
-
-    .Layout {
-        padding: var(--MobileMenuTopPad) var(--PanelPadding) var(--PanelPadding);
-        gap: var(--PanelPadding);
-    }
-
-    .SideColumn {
-        max-width: var(--FullPercent);
-    }
-
-    .TextInput,
-    select {
-        font-size: var(--MobileInputFontSize);
-    }
-
-    .BoardHintBar {
-        justify-content: center;
-        text-align: center;
-    }
-
-    .Controls .PrimaryButton,
-    .Controls .SecondaryButton,
-    .Controls .DangerButton {
-        min-width: var(--MobileButtonMinWidth);
-    }
-
-    .Coord {
-        font-size: var(--MobileCoordFontSize);
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
