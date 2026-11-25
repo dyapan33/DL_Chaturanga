@@ -1,28 +1,30 @@
-// Defines constants for the PeerJS public random matchmaking lobby.
-const PublicLobbyPeerId = 'dl-chaturanga-public-lobby-v1';
+// Defines constants for multi-transport public random matchmaking.
+const PublicLobbyChannel = 'ValexChessPublicLobby_v1';
+const PublicLobbyRelayHttp = 'https://ntfy.sh/ValexChessPublicLobby_v1';
+const PublicLobbyRelayWs = 'wss://ntfy.sh/ValexChessPublicLobby_v1/ws';
+const PublicLobbyRelaySse = 'https://ntfy.sh/ValexChessPublicLobby_v1/sse';
+const PublicLobbyStorageKey = 'ValexChessPublicLobbyMsg_v1';
 const LobbyPlayerIdLength = Nine;
-const LobbyHandoverDelayMs = 350;
-const GuestJoinDelayMs = 550;
-const FailoverBaseMs = 500;
-const FailoverJitterMs = 950;
-const LobbyConnectTimeoutMs = 5000;
+const LobbySeekIntervalMs = 1500;
+const LobbySeekerTtlMs = 5500;
+const GuestJoinDelayMs = 450;
 const CoinFlipHalf = 0.5;
+const MaxLobbyPacketLength = 1500;
 
-// Manages PeerJS-only public random matchmaking with automatic host election and failover.
+// Manages public random matchmaking across devices and tabs with deterministic pairing.
 class PublicLobbyManager {
     Initialize(OnEventCallback) {
-        // Stores the event callback and initializes lobby peer and queue state.
+        // Stores the event callback and initializes lobby transport and seeker state.
         this.OnEventCallback = OnEventCallback;
         this.PlayerId = this.GenerateId(LobbyPlayerIdLength);
         this.IsSearching = false;
-        this.IsLobbyHost = false;
         this.LocalTicket = null;
-        this.LobbyPeer = null;
-        this.HostConnection = null;
-        this.Queue = [];
-        this.ReconnectTimerId = null;
-        this.ConnectTimeoutId = null;
-        this.HandoverTimerId = null;
+        this.SeenSeekers = {};
+        this.Broadcast = null;
+        this.RelaySocket = null;
+        this.RelayStream = null;
+        this.StorageListener = null;
+        this.SeekTimerId = null;
     }
 
     // Generates a random alphanumeric identifier using Web Crypto or Math.random.
@@ -57,232 +59,282 @@ class PublicLobbyManager {
         return Cleaned.slice(Zero, MaxNameLength);
     }
 
-    // Enters the PeerJS public matchmaking queue to find a random opponent.
+    // Enters the public matchmaking queue and opens local and cross-device transports.
     JoinQueue(PlayerName, PreferredColor, TimeSeconds, IncrementSeconds) {
-        // Resets any prior lobby session and stores the local matchmaking ticket.
+        // Resets any prior lobby session and prepares a fresh matchmaking ticket.
         this.LeaveQueue();
-        if (typeof window === 'undefined' || typeof window.Peer !== 'function') {
-            this.EmitEvent({
-                Type: 'LobbyError',
-                Message: 'PeerJS is not available in this browser.'
-            });
-            return false;
-        }
+        this.PlayerId = this.GenerateId(LobbyPlayerIdLength);
         const CleanName = this.SanitizeName(PlayerName) || 'Player';
         this.IsSearching = true;
+        this.SeenSeekers = {};
         this.LocalTicket = {
             PlayerId: this.PlayerId,
             PlayerName: CleanName,
             PreferredColor: PreferredColor === 'b' ? 'b' : 'w',
             TimeSeconds: Number(TimeSeconds) || Zero,
-            IncrementSeconds: Number(IncrementSeconds) || Zero,
-            Connection: null
+            IncrementSeconds: Number(IncrementSeconds) || Zero
         };
+
+        // Opens BroadcastChannel, localStorage, and ntfy.sh relay transports.
+        this.OpenLocalTransports();
+        this.OpenRelayTransports();
         this.EmitEvent({
             Type: 'LobbyStatus',
-            Message: 'Connecting to public lobby...'
+            Message: 'Searching for a random opponent... (1 player in queue)'
         });
-        this.AttemptHostElection();
+        this.BroadcastSeekPacket();
+        this.StartSeekHeartbeat();
         return true;
     }
 
-    // Attempts to claim the fixed Lobby Peer ID, falling back to client mode if taken.
-    AttemptHostElection() {
-        // Aborts if the player cancelled matchmaking before this attempt started.
-        if (!this.IsSearching) {
-            return;
-        }
-        this.TeardownPeer();
-        this.IsLobbyHost = false;
-        try {
-            const PeerObj = new window.Peer(PublicLobbyPeerId, {
-                secure: true,
-                config: { iceServers: IceServerList }
-            });
-            this.LobbyPeer = PeerObj;
-            this.BindHostPeerEvents(PeerObj);
-        } catch (Error) {
-            this.ScheduleReconnect();
-        }
-    }
-
-    // Binds open, connection, and error handlers for a candidate Lobby Host peer.
-    BindHostPeerEvents(PeerObj) {
-        // Registers this peer as Lobby Host once the fixed ID is claimed.
-        PeerObj.on('open', () => {
-            if (!this.IsSearching || this.LobbyPeer !== PeerObj) {
-                return;
+    // Opens BroadcastChannel and localStorage listeners for instant same-device matching.
+    OpenLocalTransports() {
+        // Attaches a BroadcastChannel listener when supported by the browser.
+        if (typeof BroadcastChannel !== 'undefined') {
+            try {
+                this.Broadcast = new BroadcastChannel(PublicLobbyChannel);
+                this.Broadcast.onmessage = (Event) => {
+                    if (Event && Event.data) {
+                        this.HandleIncomingPacket(Event.data);
+                    }
+                };
+            } catch (Error) {
+                this.Broadcast = null;
             }
-            this.IsLobbyHost = true;
-            this.Queue = [];
-            if (this.LocalTicket) {
-                this.Queue.push(this.LocalTicket);
-            }
-            this.EmitEvent({
-                Type: 'LobbyStatus',
-                Message: 'Searching for a random opponent... (1 player in queue)'
-            });
-        });
+        }
 
-        // Accepts incoming lobby clients and processes their queue join/leave packets.
-        PeerObj.on('connection', (Connection) => {
-            if (!this.IsSearching || !this.IsLobbyHost) {
-                if (Connection && Connection.close) {
-                    Connection.close();
+        // Attaches a window storage listener as a cross-tab fallback.
+        if (typeof window !== 'undefined' && window.addEventListener) {
+            this.StorageListener = (Event) => {
+                if (Event && Event.key === PublicLobbyStorageKey && Event.newValue) {
+                    if (Event.newValue.length > MaxLobbyPacketLength) {
+                        return;
+                    }
+                    try {
+                        this.HandleIncomingPacket(JSON.parse(Event.newValue));
+                    } catch (Error) {
+                        return;
+                    }
                 }
-                return;
-            }
-            this.BindIncomingClientConnection(Connection);
-        });
-
-        // Switches to client mode if the fixed Lobby ID is already claimed by another player.
-        PeerObj.on('error', (Err) => {
-            if (!this.IsSearching || this.LobbyPeer !== PeerObj) {
-                return;
-            }
-            if (Err && Err.type === 'unavailable-id') {
-                this.ConnectAsLobbyClient();
-                return;
-            }
-            this.ScheduleReconnect();
-        });
+            };
+            window.addEventListener('storage', this.StorageListener);
+        }
     }
 
-    // Binds data and close listeners on a remote client connected to the Lobby Host.
-    BindIncomingClientConnection(Connection) {
-        // Handles QueueJoin and QueueLeave messages from a waiting client.
-        if (!Connection || !Connection.on) {
+    // Opens WebSocket and SSE subscriptions on the public ntfy.sh matchmaking topic.
+    OpenRelayTransports() {
+        // Connects via WebSocket for low-latency cross-device matchmaking.
+        if (typeof WebSocket === 'function') {
+            try {
+                const Socket = new WebSocket(PublicLobbyRelayWs);
+                this.RelaySocket = Socket;
+                Socket.onopen = () => {
+                    if (this.IsSearching) {
+                        this.BroadcastSeekPacket();
+                    }
+                };
+                Socket.onmessage = (Event) => {
+                    if (Event && typeof Event.data === 'string') {
+                        this.HandleRelayRawJson(Event.data);
+                    }
+                };
+            } catch (Error) {
+                this.RelaySocket = null;
+            }
+        }
+
+        // Connects via HTTPS EventSource as a firewall-safe fallback.
+        if (typeof EventSource === 'function') {
+            try {
+                const Stream = new EventSource(PublicLobbyRelaySse);
+                this.RelayStream = Stream;
+                Stream.onmessage = (Event) => {
+                    if (Event && typeof Event.data === 'string') {
+                        this.HandleRelayRawJson(Event.data);
+                    }
+                };
+            } catch (Error) {
+                this.RelayStream = null;
+            }
+        }
+    }
+
+    // Parses an incoming ntfy.sh JSON wrapper and forwards the inner lobby packet.
+    HandleRelayRawJson(RawJson) {
+        // Extracts the inner message payload from the relay event wrapper.
+        try {
+            const Wrapper = JSON.parse(RawJson);
+            if (!Wrapper) {
+                return;
+            }
+            if (typeof Wrapper.Type === 'string') {
+                this.HandleIncomingPacket(Wrapper);
+                return;
+            }
+            if (Wrapper.event === 'message' && typeof Wrapper.message === 'string') {
+                if (Wrapper.message.length > MaxLobbyPacketLength) {
+                    return;
+                }
+                this.HandleIncomingPacket(JSON.parse(Wrapper.message));
+            }
+        } catch (Error) {
             return;
         }
-        Connection.on('data', (Packet) => {
-            if (!this.IsSearching || !this.IsLobbyHost || !Packet || typeof Packet.Type !== 'string') {
+    }
+
+    // Starts the periodic seek heartbeat that announces presence and prunes stale seekers.
+    StartSeekHeartbeat() {
+        // Schedules a recurring interval to re-broadcast LobbySeek until matched.
+        this.StopSeekHeartbeat();
+        if (typeof setInterval !== 'function') {
+            return;
+        }
+        this.SeekTimerId = setInterval(() => {
+            if (!this.IsSearching) {
+                this.StopSeekHeartbeat();
                 return;
             }
-            if (Packet.Type === 'QueueJoin' && typeof Packet.PlayerId === 'string') {
-                this.EnqueueRemotePlayer(Packet, Connection);
-                return;
+            this.PruneExpiredSeekers();
+            this.BroadcastSeekPacket();
+        }, LobbySeekIntervalMs);
+    }
+
+    // Stops the periodic seek heartbeat timer if active.
+    StopSeekHeartbeat() {
+        // Clears SeekTimerId when currently scheduled.
+        if (this.SeekTimerId !== null) {
+            if (typeof clearInterval === 'function') {
+                clearInterval(this.SeekTimerId);
             }
-            if (Packet.Type === 'QueueLeave' && typeof Packet.PlayerId === 'string') {
-                this.RemoveFromQueueById(Packet.PlayerId);
-                this.BroadcastQueueStatus();
-            }
-        });
-        Connection.on('close', () => {
-            this.RemoveFromQueueByConnection(Connection);
-            this.BroadcastQueueStatus();
-        });
-    }
-
-    // Adds or updates a remote player's ticket in the host queue and attempts pairing.
-    EnqueueRemotePlayer(Packet, Connection) {
-        // Deduplicates the player ID, appends their ticket, and tries to match a pair.
-        this.RemoveFromQueueById(Packet.PlayerId);
-        this.Queue.push({
-            PlayerId: Packet.PlayerId,
-            PlayerName: this.SanitizeName(Packet.PlayerName) || 'Player',
-            PreferredColor: Packet.PreferredColor === 'b' ? 'b' : 'w',
-            TimeSeconds: Number(Packet.TimeSeconds) || Zero,
-            IncrementSeconds: Number(Packet.IncrementSeconds) || Zero,
-            Connection: Connection
-        });
-        this.TryMatchPlayers();
-        this.BroadcastQueueStatus();
-    }
-
-    // Removes a waiting player entry from the host queue by PlayerId.
-    RemoveFromQueueById(TargetPlayerId) {
-        // Filters out any queue entry matching TargetPlayerId.
-        this.Queue = this.Queue.filter((Entry) => Entry.PlayerId !== TargetPlayerId);
-    }
-
-    // Removes a waiting player entry from the host queue when their connection closes.
-    RemoveFromQueueByConnection(TargetConnection) {
-        // Filters out any queue entry attached to TargetConnection.
-        this.Queue = this.Queue.filter((Entry) => Entry.Connection !== TargetConnection);
-    }
-
-    // Pairs waiting players in the queue into encrypted multiplayer rooms.
-    TryMatchPlayers() {
-        // Repeats pairing while at least two waiting players are in the queue.
-        while (this.Queue.length >= Two && this.IsSearching) {
-            const Pair = this.SelectMatchPair();
-            if (!Pair) {
-                return;
-            }
-            this.DispatchMatch(Pair.First, Pair.Second);
+            this.SeekTimerId = null;
         }
     }
 
-    // Selects two players to pair, preferring matching time controls when available.
-    SelectMatchPair() {
-        // Checks whether the first player has an exact time-control match in the queue.
-        if (this.Queue.length < Two) {
-            return null;
+    // Broadcasts this player's LobbySeek ticket over all active lobby transports.
+    BroadcastSeekPacket(IsReply) {
+        // Publishes the local ticket when actively searching.
+        if (!this.IsSearching || !this.LocalTicket) {
+            return;
         }
-        const First = this.Queue.shift();
-        let PartnerIndex = Zero;
-        for (let Index = Zero; Index < this.Queue.length; Index += One) {
-            const Candidate = this.Queue[Index];
-            if (Candidate.TimeSeconds === First.TimeSeconds && Candidate.IncrementSeconds === First.IncrementSeconds) {
-                PartnerIndex = Index;
-                break;
-            }
-        }
-        const Second = this.Queue.splice(PartnerIndex, One)[Zero];
-        return { First: First, Second: Second };
+        this.SendLobbyPacket({
+            Type: 'LobbySeek',
+            PlayerId: this.LocalTicket.PlayerId,
+            PlayerName: this.LocalTicket.PlayerName,
+            PreferredColor: this.LocalTicket.PreferredColor,
+            TimeSeconds: this.LocalTicket.TimeSeconds,
+            IncrementSeconds: this.LocalTicket.IncrementSeconds,
+            IsReply: Boolean(IsReply),
+            SentAt: Date.now()
+        });
     }
 
-    // Assigns colors and a room code to a matched pair and notifies both players.
-    DispatchMatch(FirstPlayer, SecondPlayer) {
-        // Determines room host, guest, colors, and agreed clock settings.
+    // Sends a lobby control packet across BroadcastChannel, localStorage, and HTTPS relay.
+    SendLobbyPacket(Packet) {
+        // Dispatches Packet to all available transports without blocking.
+        if (this.Broadcast) {
+            try {
+                this.Broadcast.postMessage(Packet);
+            } catch (Error) {
+                // Ignores closed BroadcastChannel errors.
+            }
+        }
+        if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
+            try {
+                localStorage.setItem(PublicLobbyStorageKey, JSON.stringify(Packet));
+            } catch (Error) {
+                // Ignores storage quota errors.
+            }
+        }
+        if (typeof fetch === 'function') {
+            try {
+                fetch(PublicLobbyRelayHttp, {
+                    method: 'POST',
+                    body: JSON.stringify(Packet)
+                }).catch(() => {});
+            } catch (Error) {
+                // Ignores offline fetch errors.
+            }
+        }
+    }
+
+    // Processes incoming LobbySeek, LobbyLeave, and LobbyMatch packets.
+    HandleIncomingPacket(Packet) {
+        // Ignores invalid packets or packets received when not searching.
+        if (!this.IsSearching || !this.LocalTicket || !Packet || typeof Packet.Type !== 'string') {
+            return;
+        }
+
+        // Handles direct match assignment when another player paired with us as Host.
+        if (Packet.Type === 'LobbyMatch' && Packet.GuestId === this.PlayerId && typeof Packet.RoomCode === 'string') {
+            this.IsSearching = false;
+            this.TeardownTransports();
+            this.EmitEvent({
+                Type: 'MatchFound',
+                Role: 'guest',
+                RoomCode: Packet.RoomCode,
+                Color: Packet.GuestColor === 'w' ? 'w' : 'b',
+                OpponentName: this.SanitizeName(Packet.HostName) || 'Opponent',
+                TimeSeconds: Number(Packet.TimeSeconds) || Zero,
+                IncrementSeconds: Number(Packet.IncrementSeconds) || Zero
+            });
+            return;
+        }
+
+        // Removes a departed seeker from the live queue count.
+        if (Packet.Type === 'LobbyLeave' && typeof Packet.PlayerId === 'string') {
+            delete this.SeenSeekers[Packet.PlayerId];
+            this.EmitQueueCountStatus();
+            return;
+        }
+
+        // Handles another player's LobbySeek and deterministically pairs when our ID is smaller.
+        if (Packet.Type === 'LobbySeek' && typeof Packet.PlayerId === 'string' && Packet.PlayerId !== this.PlayerId) {
+            this.SeenSeekers[Packet.PlayerId] = Date.now();
+            this.EmitQueueCountStatus();
+            if (this.PlayerId < Packet.PlayerId) {
+                this.InitiateMatchAsHost(Packet);
+            } else if (!Packet.IsReply) {
+                this.BroadcastSeekPacket(true);
+            }
+        }
+    }
+
+    // Creates a room code, broadcasts LobbyMatch to the guest, and starts as room host.
+    InitiateMatchAsHost(GuestPacket) {
+        // Assigns colors and room code, notifies the guest, and transitions into the match.
         const RoomCode = this.GenerateId(RoomCodeLength);
-        const Colors = this.AssignMatchColors(FirstPlayer.PreferredColor, SecondPlayer.PreferredColor);
-        const AgreedTime = FirstPlayer.TimeSeconds;
-        const AgreedIncrement = FirstPlayer.IncrementSeconds;
-        const FirstPayload = {
+        const Colors = this.AssignMatchColors(this.LocalTicket.PreferredColor, GuestPacket.PreferredColor);
+        const AgreedTime = this.LocalTicket.TimeSeconds;
+        const AgreedIncrement = this.LocalTicket.IncrementSeconds;
+        const GuestName = this.SanitizeName(GuestPacket.PlayerName) || 'Opponent';
+        this.SendLobbyPacket({
+            Type: 'LobbyMatch',
+            HostId: this.PlayerId,
+            GuestId: GuestPacket.PlayerId,
+            RoomCode: RoomCode,
+            HostColor: Colors.FirstColor,
+            GuestColor: Colors.SecondColor,
+            HostName: this.LocalTicket.PlayerName,
+            GuestName: GuestName,
+            TimeSeconds: AgreedTime,
+            IncrementSeconds: AgreedIncrement
+        });
+        this.IsSearching = false;
+        this.TeardownTransports();
+        this.EmitEvent({
             Type: 'MatchFound',
             Role: 'host',
             RoomCode: RoomCode,
             Color: Colors.FirstColor,
-            OpponentName: SecondPlayer.PlayerName,
+            OpponentName: GuestName,
             TimeSeconds: AgreedTime,
             IncrementSeconds: AgreedIncrement
-        };
-        const SecondPayload = {
-            Type: 'MatchFound',
-            Role: 'guest',
-            RoomCode: RoomCode,
-            Color: Colors.SecondColor,
-            OpponentName: FirstPlayer.PlayerName,
-            TimeSeconds: AgreedTime,
-            IncrementSeconds: AgreedIncrement
-        };
-
-        // Delivers MatchFound to remote clients and schedules local handover if host matched.
-        const FirstIsLocal = FirstPlayer.PlayerId === this.PlayerId;
-        const SecondIsLocal = SecondPlayer.PlayerId === this.PlayerId;
-        if (!FirstIsLocal && FirstPlayer.Connection && FirstPlayer.Connection.open) {
-            FirstPlayer.Connection.send(FirstPayload);
-        }
-        if (!SecondIsLocal && SecondPlayer.Connection && SecondPlayer.Connection.open) {
-            SecondPlayer.Connection.send(SecondPayload);
-        }
-        if (FirstIsLocal || SecondIsLocal) {
-            const LocalPayload = FirstIsLocal ? FirstPayload : SecondPayload;
-            this.IsSearching = false;
-            this.IsLobbyHost = false;
-            this.ClearTimers();
-            this.HandoverTimerId = setTimeout(() => {
-                this.HandoverTimerId = null;
-                this.TeardownPeer();
-                this.EmitEvent(LocalPayload);
-            }, LobbyHandoverDelayMs);
-        }
+        });
     }
 
     // Assigns White and Black to two matched players, honoring opposite preferences or flipping a coin.
     AssignMatchColors(FirstPref, SecondPref) {
-        // Honors preferences when opposite; otherwise assigns White randomly.
+        // Honors opposite preferences; otherwise flips a fair coin.
         if (FirstPref === 'w' && SecondPref === 'b') {
             return { FirstColor: 'w', SecondColor: 'b' };
         }
@@ -296,215 +348,80 @@ class PublicLobbyManager {
         };
     }
 
-    // Broadcasts the current queue count to all waiting clients and updates local status.
-    BroadcastQueueStatus() {
-        // Exits if this peer is no longer acting as the active Lobby Host.
-        if (!this.IsSearching || !this.IsLobbyHost) {
-            return;
-        }
-        const Count = this.Queue.length;
-        const Label = Count === One ? '1 player in queue' : `${Count} players in queue`;
-        for (let Index = Zero; Index < this.Queue.length; Index += One) {
-            const Entry = this.Queue[Index];
-            if (Entry.Connection && Entry.Connection.open) {
-                Entry.Connection.send({
-                    Type: 'QueueStatus',
-                    WaitingCount: Count
-                });
+    // Removes expired remote seekers from SeenSeekers and refreshes the status counter.
+    PruneExpiredSeekers() {
+        // Drops any seeker who has not sent a heartbeat within LobbySeekerTtlMs.
+        const Now = Date.now();
+        const Keys = Object.keys(this.SeenSeekers);
+        for (let Index = Zero; Index < Keys.length; Index += One) {
+            const Key = Keys[Index];
+            if (Now - this.SeenSeekers[Key] > LobbySeekerTtlMs) {
+                delete this.SeenSeekers[Key];
             }
         }
+        this.EmitQueueCountStatus();
+    }
+
+    // Emits a live queue count message for the UI status box.
+    EmitQueueCountStatus() {
+        // Counts this player plus all active remote seekers.
+        if (!this.IsSearching) {
+            return;
+        }
+        const Total = One + Object.keys(this.SeenSeekers).length;
+        const Label = Total === One ? '1 player in queue' : `${Total} players in queue`;
         this.EmitEvent({
             Type: 'LobbyStatus',
             Message: `Searching for a random opponent... (${Label})`
         });
     }
 
-    // Connects as an anonymous PeerJS client to the active Lobby Host peer.
-    ConnectAsLobbyClient() {
-        // Creates an ephemeral PeerJS instance and opens a connection to PublicLobbyPeerId.
-        if (!this.IsSearching) {
-            return;
-        }
-        this.TeardownPeer();
-        this.IsLobbyHost = false;
-        try {
-            const PeerObj = new window.Peer({
-                secure: true,
-                config: { iceServers: IceServerList }
-            });
-            this.LobbyPeer = PeerObj;
-            PeerObj.on('open', () => {
-                if (!this.IsSearching || this.LobbyPeer !== PeerObj) {
-                    return;
-                }
-                const Connection = PeerObj.connect(PublicLobbyPeerId, { reliable: true });
-                this.HostConnection = Connection;
-                this.BindClientToHostConnection(Connection);
-                this.StartConnectTimeout(Connection);
-            });
-            PeerObj.on('error', () => {
-                if (this.IsSearching && this.LobbyPeer === PeerObj) {
-                    this.ScheduleReconnect();
-                }
-            });
-        } catch (Error) {
-            this.ScheduleReconnect();
-        }
-    }
-
-    // Binds open, data, close, and error handlers on the client's connection to the Lobby Host.
-    BindClientToHostConnection(Connection) {
-        // Sends QueueJoin once connected and listens for QueueStatus or MatchFound.
-        if (!Connection || !Connection.on) {
-            return;
-        }
-        Connection.on('open', () => {
-            this.ClearConnectTimeout();
-            if (!this.IsSearching || !this.LocalTicket) {
-                return;
-            }
-            Connection.send({
-                Type: 'QueueJoin',
-                PlayerId: this.LocalTicket.PlayerId,
-                PlayerName: this.LocalTicket.PlayerName,
-                PreferredColor: this.LocalTicket.PreferredColor,
-                TimeSeconds: this.LocalTicket.TimeSeconds,
-                IncrementSeconds: this.LocalTicket.IncrementSeconds
-            });
-            this.EmitEvent({
-                Type: 'LobbyStatus',
-                Message: 'Connected to public lobby. Searching for an opponent...'
-            });
-        });
-        Connection.on('data', (Packet) => {
-            if (!this.IsSearching || !Packet || typeof Packet.Type !== 'string') {
-                return;
-            }
-            if (Packet.Type === 'QueueStatus') {
-                const Count = Number(Packet.WaitingCount) || One;
-                const Label = Count === One ? '1 player in queue' : `${Count} players in queue`;
-                this.EmitEvent({
-                    Type: 'LobbyStatus',
-                    Message: `Searching for a random opponent... (${Label})`
-                });
-                return;
-            }
-            if (Packet.Type === 'MatchFound') {
-                this.IsSearching = false;
-                this.ClearTimers();
-                this.TeardownPeer();
-                this.EmitEvent(Packet);
-            }
-        });
-        Connection.on('close', () => {
-            if (this.IsSearching) {
-                this.ScheduleReconnect();
-            }
-        });
-        Connection.on('error', () => {
-            if (this.IsSearching) {
-                this.ScheduleReconnect();
-            }
-        });
-    }
-
-    // Starts a timeout to detect an unresponsive Lobby Host and trigger re-election.
-    StartConnectTimeout(Connection) {
-        // Schedules a reconnect if the client data channel does not open in time.
-        this.ClearConnectTimeout();
-        if (typeof setTimeout !== 'function') {
-            return;
-        }
-        this.ConnectTimeoutId = setTimeout(() => {
-            this.ConnectTimeoutId = null;
-            if (this.IsSearching && (!Connection || !Connection.open)) {
-                this.ScheduleReconnect();
-            }
-        }, LobbyConnectTimeoutMs);
-    }
-
-    // Clears any pending client connection timeout.
-    ClearConnectTimeout() {
-        // Cancels ConnectTimeoutId if currently active.
-        if (this.ConnectTimeoutId !== null) {
-            clearTimeout(this.ConnectTimeoutId);
-            this.ConnectTimeoutId = null;
-        }
-    }
-
-    // Schedules a jittered re-election attempt after a host disconnect or network error.
-    ScheduleReconnect() {
-        // Avoids overlapping timers and retries host election after a randomized delay.
-        if (!this.IsSearching || this.ReconnectTimerId !== null) {
-            return;
-        }
-        this.TeardownPeer();
-        this.EmitEvent({
-            Type: 'LobbyStatus',
-            Message: 'Reconnecting to public lobby...'
-        });
-        const Delay = FailoverBaseMs + Math.floor(Math.random() * FailoverJitterMs);
-        this.ReconnectTimerId = setTimeout(() => {
-            this.ReconnectTimerId = null;
-            if (this.IsSearching) {
-                this.AttemptHostElection();
-            }
-        }, Delay);
-    }
-
-    // Leaves the public matchmaking queue and frees all PeerJS resources and timers.
+    // Leaves the public matchmaking queue and closes all active transports and timers.
     LeaveQueue() {
-        // Notifies the Lobby Host if connected as a client, then cleans up peers and timers.
-        if (this.HostConnection && this.HostConnection.open && this.LocalTicket) {
-            try {
-                this.HostConnection.send({
-                    Type: 'QueueLeave',
-                    PlayerId: this.LocalTicket.PlayerId
-                });
-            } catch (Error) {
-                // Ignores send errors during teardown.
-            }
+        // Announces departure if currently searching, then tears down transports.
+        if (this.IsSearching && this.LocalTicket) {
+            this.SendLobbyPacket({
+                Type: 'LobbyLeave',
+                PlayerId: this.LocalTicket.PlayerId
+            });
         }
         this.IsSearching = false;
-        this.IsLobbyHost = false;
         this.LocalTicket = null;
-        this.Queue = [];
-        this.ClearTimers();
-        this.TeardownPeer();
+        this.SeenSeekers = {};
+        this.TeardownTransports();
     }
 
-    // Clears all active reconnect, connection timeout, and handover timers.
-    ClearTimers() {
-        // Cancels every timer identifier managed by PublicLobbyManager.
-        this.ClearConnectTimeout();
-        if (this.ReconnectTimerId !== null) {
-            clearTimeout(this.ReconnectTimerId);
-            this.ReconnectTimerId = null;
-        }
-        if (this.HandoverTimerId !== null) {
-            clearTimeout(this.HandoverTimerId);
-            this.HandoverTimerId = null;
-        }
-    }
-
-    // Closes active PeerJS lobby connections and destroys the PeerJS instance.
-    TeardownPeer() {
-        // Safely closes HostConnection and destroys LobbyPeer.
-        if (this.HostConnection) {
+    // Stops timers and closes BroadcastChannel, storage listener, WebSocket, and EventSource.
+    TeardownTransports() {
+        // Releases all network and local listeners cleanly without leaks.
+        this.StopSeekHeartbeat();
+        if (this.Broadcast) {
             try {
-                this.HostConnection.close();
+                this.Broadcast.close();
             } catch (Error) {
-                // Ignores connection close errors.
+                // Ignores close errors.
             }
-            this.HostConnection = null;
+            this.Broadcast = null;
         }
-        if (this.LobbyPeer) {
+        if (this.RelaySocket) {
             try {
-                this.LobbyPeer.destroy();
+                this.RelaySocket.close();
             } catch (Error) {
-                // Ignores peer destroy errors.
+                // Ignores socket close errors.
             }
-            this.LobbyPeer = null;
+            this.RelaySocket = null;
+        }
+        if (this.RelayStream) {
+            try {
+                this.RelayStream.close();
+            } catch (Error) {
+                // Ignores stream close errors.
+            }
+            this.RelayStream = null;
+        }
+        if (this.StorageListener && typeof window !== 'undefined' && window.removeEventListener) {
+            window.removeEventListener('storage', this.StorageListener);
+            this.StorageListener = null;
         }
     }
 

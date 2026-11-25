@@ -119,6 +119,10 @@ class Controller {
         // Caches references to the collapsible DOM containers and control buttons.
         this.WorkspaceLayout = document.getElementById('WorkspaceLayout');
         this.BoardColumnBox = document.getElementById('BoardColumn');
+        this.AppSidebar = document.getElementById('AppSidebar');
+        this.SidebarBackdrop = document.getElementById('SidebarBackdrop');
+        this.MobileMenuButton = document.getElementById('MobileMenuButton');
+        this.SidebarCloseButton = document.getElementById('SidebarCloseButton');
         this.SavedGamesListBox = document.getElementById('SavedGamesList');
         this.SidebarLogo = document.getElementById('SidebarLogo');
         this.BotSelectorBox = document.getElementById('BotSelector');
@@ -139,12 +143,22 @@ class Controller {
 
         // Binds click listeners for sidebar, New Game, Rematch, Undo, Draw, Resign, and arrow keys.
         const ReturnToSetup = () => {
+            this.CloseMobileSidebar();
             this.ClearRoomQueryFromUrl();
             this.ShowPreGameSetup();
         };
         document.getElementById('NewGameButton').addEventListener('click', ReturnToSetup);
         if (this.SidebarLogo) {
             this.SidebarLogo.addEventListener('click', ReturnToSetup);
+        }
+        if (this.MobileMenuButton) {
+            this.MobileMenuButton.addEventListener('click', () => this.ToggleMobileSidebar());
+        }
+        if (this.SidebarCloseButton) {
+            this.SidebarCloseButton.addEventListener('click', () => this.CloseMobileSidebar());
+        }
+        if (this.SidebarBackdrop) {
+            this.SidebarBackdrop.addEventListener('click', () => this.CloseMobileSidebar());
         }
         if (this.RematchButton) {
             this.RematchButton.addEventListener('click', () => this.HandleRematchClick());
@@ -1401,9 +1415,38 @@ class Controller {
         this.RenderSavedGamesSidebar();
     }
 
+    // Toggles the mobile slide-over sidebar drawer open or closed.
+    ToggleMobileSidebar() {
+        // Opens the drawer if closed, or closes it if already open.
+        if (!this.AppSidebar) {
+            return;
+        }
+        const IsOpen = this.AppSidebar.classList.contains('SidebarOpen');
+        if (IsOpen) {
+            this.CloseMobileSidebar();
+        } else {
+            this.AppSidebar.classList.add('SidebarOpen');
+            if (this.SidebarBackdrop) {
+                this.SidebarBackdrop.classList.add('SidebarOpen');
+            }
+        }
+    }
+
+    // Closes the mobile slide-over sidebar drawer and hides its backdrop.
+    CloseMobileSidebar() {
+        // Removes SidebarOpen from both AppSidebar and SidebarBackdrop.
+        if (this.AppSidebar) {
+            this.AppSidebar.classList.remove('SidebarOpen');
+        }
+        if (this.SidebarBackdrop) {
+            this.SidebarBackdrop.classList.remove('SidebarOpen');
+        }
+    }
+
     // Opens a saved game from localStorage for move-by-move inspection on the board.
     OpenSavedGame(GameId) {
-        // Loads the saved record and cleanly exits any live game or lobby queue.
+        // Closes mobile drawer, loads the saved record, and exits any live game or lobby.
+        this.CloseMobileSidebar();
         const Record = this.Store.GetGameById(GameId);
         if (!Record || !Record.Frames || Record.Frames.length === Zero) {
             return;

@@ -11,9 +11,17 @@
 </head>
 <body>
     <div class="AppShell">
+        <button id="MobileMenuButton" class="MobileMenuButton" type="button" aria-label="Open menu">
+            <i data-lucide="menu"></i>
+        </button>
+        <div id="SidebarBackdrop" class="SidebarBackdrop"></div>
+
         <aside id="AppSidebar" class="AppSidebar">
             <div class="SidebarHeader">
                 <h1 id="SidebarLogo" class="SidebarLogo">Valex Chess</h1>
+                <button id="SidebarCloseButton" class="SidebarCloseButton" type="button" aria-label="Close menu">
+                    <i data-lucide="x"></i>
+                </button>
             </div>
             <div class="SidebarDivider"></div>
             <div class="SidebarGamesHeader">
