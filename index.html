@@ -25,6 +25,17 @@
                 </button>
             </div>
             <div class="SidebarDivider"></div>
+            <div class="SidebarPuzzleGroup">
+                <button id="SidebarDailyPuzzleButton" class="PrimaryButton SidebarActionBtn" type="button">
+                    <i data-lucide="sparkles"></i>
+                    <span>Daily Puzzle</span>
+                </button>
+                <button id="SidebarRandomPuzzleButton" class="SecondaryButton SidebarActionBtn" type="button">
+                    <i data-lucide="puzzle"></i>
+                    <span>Random Puzzle</span>
+                </button>
+            </div>
+            <div class="SidebarDivider"></div>
             <div class="SidebarGamesHeader">
                 <span class="SidebarSectionLabel">Your Games</span>
             </div>
@@ -40,6 +51,7 @@
 
             <aside id="SideColumn" class="SideColumn">
                 <div id="BotSelector"></div>
+                <div id="PuzzlePanel" class="Hidden"></div>
                 <div id="SandboxPanel" class="Hidden"></div>
                 <div id="MoveList" class="Hidden"></div>
                 <div id="GameControls" class="Controls Hidden">
@@ -80,6 +92,7 @@
     <script src="JS/PublicLobby.js"></script>
     <script src="JS/Physics.js"></script>
     <script src="JS/Feedback.js"></script>
+    <script src="JS/Puzzles.js"></script>
     <script src="JS/GameStore.js"></script>
     <script src="JS/Board.js"></script>
     <script src="JS/BotSelector.js"></script>

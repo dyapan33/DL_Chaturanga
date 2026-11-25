@@ -159,9 +159,7 @@ class BotSelectorView {
     UpdateSegmentedStates() {
         // Updates the Vs Bot / Multiplayer / Public / Sandbox segmented control state.
         if (this.ModeTabsBox) {
-            this.ModeTabsBox.classList.remove('SlideSecond');
-            this.ModeTabsBox.classList.remove('SlideThird');
-            this.ModeTabsBox.classList.remove('SlideFourth');
+            this.ModeTabsBox.classList.remove('SlideSecond', 'SlideThird', 'SlideFourth');
             if (this.Mode === 'multiplayer') {
                 this.ModeTabsBox.classList.add('SlideSecond');
             } else if (this.Mode === 'public') {

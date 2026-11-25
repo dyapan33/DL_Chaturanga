@@ -56,6 +56,17 @@
     background: var(--PanelBorder);
 }
 
+.SidebarPuzzleGroup {
+    display: flex;
+    flex-direction: column;
+    gap: var(--RowGap);
+}
+
+.SidebarActionBtn {
+    flex: none;
+    width: var(--FullPercent);
+}
+
 .SidebarGamesHeader {
     display: flex;
     align-items: center;
@@ -337,6 +348,14 @@
     background: var(--SelectedColor);
 }
 
+.PremoveSquare {
+    background: var(--PremoveColor) !important;
+}
+
+.PuzzleHintSquare {
+    background: var(--HintSquareColor) !important;
+}
+
 .KingInCheck {
     background: var(--KingCheckBg) !important;
     animation: KingCheckPulse var(--PulseDuration) ease-in-out infinite;
@@ -500,6 +519,26 @@
     background: var(--AccentHover);
     box-shadow: var(--Zero) var(--Zero) var(--ShadowBlur) var(--AccentGlowColor);
     animation: QueuePulse var(--PulseDuration) ease-in-out infinite;
+}
+
+.PuzzleStatsRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--RowGap);
+    margin-bottom: var(--RowMarginBottom);
+}
+
+.PuzzleAttributionLink {
+    display: inline-block;
+    margin-top: var(--LineMarginTop);
+    font-size: var(--SmallFontSize);
+    color: var(--AccentHover);
+    text-decoration: none;
+}
+
+.PuzzleAttributionLink:hover {
+    text-decoration: underline;
 }
 
 .SandboxPieceGrid {

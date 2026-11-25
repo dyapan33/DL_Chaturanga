@@ -17,6 +17,8 @@
     --SelectedColor: rgba(229, 181, 69, 0.55);
     --DragHoverColor: rgba(5, 155, 250, 0.45);
     --LastMoveColor: rgba(229, 181, 69, 0.35);
+    --PremoveColor: rgba(235, 75, 65, 0.45);
+    --HintSquareColor: rgba(5, 155, 250, 0.55);
     --KingCheckBg: rgb(215, 45, 59);
     --DotColor: rgba(15, 23, 19, 0.35);
     --CaptureColor: rgba(215, 45, 59, 0.75);
@@ -28,6 +30,7 @@
     --Zero: 0;
     --One: 1;
     --Three: 3;
+    --Five: 5;
     --Ten: 10;
     --FullHeight: 100vh;
     --FullPercent: 100%;

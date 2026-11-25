@@ -32,6 +32,7 @@ const MaxDrawRequests = Three;
 const RequestCooldownSeconds = Ten;
 const LowClockWarningSeconds = 15;
 const CooldownTickMs = 1000;
+const PremoveExecDelayMs = 50;
 const ValidUciPattern = new RegExp('^[a-h][1-8][a-h][1-8][qrbn]?$');
 
 // Coordinates user input, drag-and-drop, multiplayer, chess rules, clocks, and bot responses.
@@ -68,6 +69,15 @@ class Controller {
         this.PlayedEndFeedback = false;
         this.LastSoundMoveKey = '';
         this.LastCheckMoveKey = '';
+        this.QueuedPremove = null;
+        this.PremoveOrigin = null;
+        this.PremoveTimerId = null;
+        this.InPuzzleMode = false;
+        this.ActivePuzzle = null;
+        this.PuzzleStepIndex = Zero;
+        this.PuzzleSolved = false;
+        this.PuzzleHadMistake = false;
+        this.PuzzleReplyTimerId = null;
         this.ViewedFrameIndex = Zero;
         this.Game = new ChessGame();
         this.Game.Initialize();
@@ -77,6 +87,8 @@ class Controller {
         this.Physics.Initialize();
         this.Feedback = new FeedbackManager();
         this.Feedback.Initialize();
+        this.Puzzles = new PuzzleManager();
+        this.Puzzles.Initialize();
         this.Store = new GameStorageManager();
         this.Store.Initialize();
         this.Network = new MultiplayerManager();
@@ -123,9 +135,12 @@ class Controller {
         this.SidebarBackdrop = document.getElementById('SidebarBackdrop');
         this.MobileMenuButton = document.getElementById('MobileMenuButton');
         this.SidebarCloseButton = document.getElementById('SidebarCloseButton');
+        this.SidebarDailyPuzzleButton = document.getElementById('SidebarDailyPuzzleButton');
+        this.SidebarRandomPuzzleButton = document.getElementById('SidebarRandomPuzzleButton');
         this.SavedGamesListBox = document.getElementById('SavedGamesList');
         this.SidebarLogo = document.getElementById('SidebarLogo');
         this.BotSelectorBox = document.getElementById('BotSelector');
+        this.PuzzleBox = document.getElementById('PuzzlePanel');
         this.SandboxBox = document.getElementById('SandboxPanel');
         this.MoveListBox = document.getElementById('MoveList');
         this.StatusBox = document.getElementById('StatusPanel');
@@ -159,6 +174,18 @@ class Controller {
         }
         if (this.SidebarBackdrop) {
             this.SidebarBackdrop.addEventListener('click', () => this.CloseMobileSidebar());
+        }
+        if (this.SidebarDailyPuzzleButton) {
+            this.SidebarDailyPuzzleButton.addEventListener('click', () => {
+                this.CloseMobileSidebar();
+                this.StartPuzzleSession(true);
+            });
+        }
+        if (this.SidebarRandomPuzzleButton) {
+            this.SidebarRandomPuzzleButton.addEventListener('click', () => {
+                this.CloseMobileSidebar();
+                this.StartPuzzleSession(false);
+            });
         }
         if (this.RematchButton) {
             this.RematchButton.addEventListener('click', () => this.HandleRematchClick());
@@ -199,10 +226,15 @@ class Controller {
         // Cancels any pending bot or clock timers, disconnects multiplayer, and resets flags.
         this.ClearBotTimer();
         this.ClearPublicGuestTimer();
+        this.ClearPremove();
+        this.ClearPuzzleTimer();
         this.StopClockTimer();
         this.ResetRequestLimits();
         this.Lobby.LeaveQueue();
         this.Network.Disconnect();
+        this.InPuzzleMode = false;
+        this.ActivePuzzle = null;
+        this.Board.SetHintSquare(null);
         this.Status.SetRoomCode('');
         this.Status.SetMessage('');
         this.OpponentName = '';
@@ -238,6 +270,10 @@ class Controller {
 
         // Shows the setup card and hides status, moves, sandbox, banner, and game buttons.
         this.BotSelectorBox.classList.remove('Hidden');
+        if (this.PuzzleBox) {
+            this.PuzzleBox.classList.add('Hidden');
+            this.PuzzleBox.innerHTML = '';
+        }
         if (this.SandboxBox) {
             this.SandboxBox.classList.add('Hidden');
         }
@@ -397,8 +433,17 @@ class Controller {
     ActivateMatchSession(Elo, OddsPieces, OddsTimes, PlayerColor, IsMultiplayer, IsSandbox) {
         // Resets timers, flips the board if playing Black, and reveals match panels.
         this.ClearBotTimer();
+        this.ClearPremove();
+        this.ClearPuzzleTimer();
         this.ResetRequestLimits();
         this.Selector.ResetMultiplayerState();
+        this.InPuzzleMode = false;
+        this.ActivePuzzle = null;
+        this.Board.SetHintSquare(null);
+        if (this.PuzzleBox) {
+            this.PuzzleBox.classList.add('Hidden');
+            this.PuzzleBox.innerHTML = '';
+        }
         this.Busy = false;
         this.GameStarted = true;
         this.ReviewingGame = null;
@@ -1129,6 +1174,12 @@ class Controller {
 
     // Applies a player move and broadcasts it or schedules the bot's reply.
     SendMove(MoveUci) {
+        // Routes moves to the local puzzle verifier when in Puzzle mode.
+        if (this.InPuzzleMode) {
+            this.HandlePuzzlePlayerMove(MoveUci);
+            return;
+        }
+
         // Ignores move attempts while busy, before game start, or when not player's turn.
         if (this.Busy || !this.GameStarted || !this.IsLocalPlayerTurn()) {
             return;
@@ -1636,15 +1687,25 @@ class Controller {
             this.ClearRoomQueryFromUrl();
         }
         const AllowBoardMoves = this.IsLocalPlayerTurn() && (!NewState.IsSandbox || this.SandboxTool === 'move');
+        const PremoveColor = this.CanUsePremove(NewState) ? NewState.PlayerColor : null;
+        this.Board.SetPremoveState(this.QueuedPremove, PremoveColor);
         const DisplayMoves = NewState.SanHistory || NewState.History;
         this.Board.ApplyState(NewState, AllowBoardMoves);
         this.Moves.Render(DisplayMoves, this.ViewedFrameIndex, LatestIndex);
         this.Status.Render(NewState);
         this.RenderOpponentBanner(NewState);
         this.UpdateEmotiveMood(NewState);
-        this.PersistActiveGame(NewState);
+        if (!this.InPuzzleMode) {
+            this.PersistActiveGame(NewState);
+        }
         if (NewState.IsSandbox) {
             this.RenderSandboxPanel();
+        }
+        if (this.InPuzzleMode) {
+            this.RenderPuzzlePanel();
+        }
+        if (this.QueuedPremove && this.IsLocalPlayerTurn() && !NewState.GameOver && !this.InPuzzleMode) {
+            this.TryExecuteQueuedPremove(NewState);
         }
 
         // Configures action buttons for Sandbox mode, finished games, or active matches.
@@ -1898,8 +1959,320 @@ class Controller {
         }
     }
 
+    // Checks whether premoving is currently permitted on the given game state.
+    CanUsePremove(State) {
+        // Allows premoves during active Bot or Multiplayer matches on the opponent's turn.
+        if (!this.GameStarted || !State || State.GameOver || State.IsSandbox || this.InPuzzleMode) {
+            return false;
+        }
+        return State.Turn !== State.PlayerColor;
+    }
+
+    // Queues a premove from FromSquare to ToSquare and highlights both squares on the board.
+    QueuePremove(FromSquare, ToSquare) {
+        // Stores the queued premove UCI, clears selection, and updates board visuals.
+        this.QueuedPremove = FromSquare + ToSquare;
+        this.PremoveOrigin = null;
+        this.Selected = null;
+        this.Board.ApplySelection(null);
+        this.Board.SetPremoveState(this.QueuedPremove, this.State ? this.State.PlayerColor : null);
+        this.Board.Render([], this.State ? this.State.LastMove : null);
+        this.Feedback.PlayUiTap();
+    }
+
+    // Clears any queued premove and pending premove execution timer.
+    ClearPremove() {
+        // Cancels PremoveTimerId and removes premove square highlights.
+        if (this.PremoveTimerId !== null) {
+            clearTimeout(this.PremoveTimerId);
+            this.PremoveTimerId = null;
+        }
+        this.QueuedPremove = null;
+        this.PremoveOrigin = null;
+        if (this.Board) {
+            this.Board.SetPremoveState(null, null);
+        }
+    }
+
+    // Executes the queued premove immediately if it is legal on the newly arrived turn.
+    TryExecuteQueuedPremove(NewState) {
+        // Validates the queued premove (or auto-queen promotion) against LegalMoves.
+        const Candidate = this.QueuedPremove;
+        this.ClearPremove();
+        if (!Candidate || !NewState || !NewState.LegalMoves) {
+            return;
+        }
+        let FinalMove = '';
+        if (NewState.LegalMoves.includes(Candidate)) {
+            FinalMove = Candidate;
+        } else if (NewState.LegalMoves.includes(`${Candidate}q`)) {
+            FinalMove = `${Candidate}q`;
+        }
+        if (FinalMove === '') {
+            return;
+        }
+        this.PremoveTimerId = setTimeout(() => {
+            this.PremoveTimerId = null;
+            if (this.GameStarted && !this.Busy && this.IsLocalPlayerTurn()) {
+                this.SendMove(FinalMove);
+            }
+        }, PremoveExecDelayMs);
+    }
+
+    // Cancels any pending puzzle opponent reply timer.
+    ClearPuzzleTimer() {
+        // Clears PuzzleReplyTimerId if currently scheduled.
+        if (this.PuzzleReplyTimerId !== null) {
+            clearTimeout(this.PuzzleReplyTimerId);
+            this.PuzzleReplyTimerId = null;
+        }
+    }
+
+    // Starts a local Daily or Random tactical puzzle session on the board.
+    StartPuzzleSession(IsDaily) {
+        // Resets active sessions, reveals the board, and loads a local tactical puzzle.
+        this.ClearBotTimer();
+        this.ClearPublicGuestTimer();
+        this.ClearPremove();
+        this.ClearPuzzleTimer();
+        this.StopClockTimer();
+        this.Lobby.LeaveQueue();
+        this.Network.Disconnect();
+        this.Physics.Reset();
+        this.HidePromotionPicker();
+        this.HideDrawOfferPrompt();
+        this.InPuzzleMode = true;
+        this.GameStarted = true;
+        this.ReviewingGame = null;
+        this.Busy = false;
+        this.PuzzleSolved = false;
+        this.PuzzleHadMistake = false;
+        this.PuzzleStepIndex = Zero;
+        this.ActivePuzzle = null;
+        this.Board.SetHintSquare(null);
+        if (this.BoardColumnBox) {
+            this.BoardColumnBox.classList.remove('Hidden');
+        }
+        if (this.WorkspaceLayout) {
+            this.WorkspaceLayout.classList.remove('PreGameLayout');
+        }
+        this.BotSelectorBox.classList.add('Hidden');
+        if (this.SandboxBox) {
+            this.SandboxBox.classList.add('Hidden');
+        }
+        if (this.OpponentBannerBox) {
+            this.OpponentBannerBox.classList.add('Hidden');
+        }
+        this.GameControlsBox.classList.add('Hidden');
+        this.MoveListBox.classList.add('Hidden');
+        this.PostGameControlsBox.classList.remove('Hidden');
+        if (this.RematchButton) {
+            this.RematchButton.classList.add('Hidden');
+        }
+        this.StatusBox.classList.remove('Hidden');
+        if (this.PuzzleBox) {
+            this.PuzzleBox.classList.remove('Hidden');
+        }
+        this.Status.SetRoomCode('');
+        const Puzzle = this.Puzzles.FetchPuzzle(IsDaily);
+        if (!Puzzle) {
+            return;
+        }
+        this.LoadActivePuzzle(Puzzle);
+    }
+
+    // Loads a parsed local puzzle onto the board ready for the player's first move.
+    LoadActivePuzzle(Puzzle) {
+        // Configures ChessGame with the puzzle FEN and sets board orientation to SideToMove.
+        this.ClearPuzzleTimer();
+        this.ActivePuzzle = Puzzle;
+        this.PuzzleStepIndex = Zero;
+        this.PuzzleSolved = false;
+        this.PuzzleHadMistake = false;
+        this.Busy = false;
+        this.Board.SetHintSquare(null);
+        this.Game.Start(DefaultBotElo, '', One, Puzzle.SideToMove, false, false);
+        this.Game.LoadFen(Puzzle.Fen);
+        this.Board.SetFlipped(Puzzle.SideToMove === 'b');
+        const SideLabel = Puzzle.SideToMove === 'w' ? 'White' : 'Black';
+        this.Status.SetMessage(`Find the best move for ${SideLabel}!`);
+        this.ApplyState(this.Game.GetState());
+        this.GameControlsBox.classList.add('Hidden');
+        this.MoveListBox.classList.add('Hidden');
+        this.PostGameControlsBox.classList.remove('Hidden');
+        if (this.RematchButton) {
+            this.RematchButton.classList.add('Hidden');
+        }
+        this.RefreshIcons();
+    }
+
+    // Validates a player's move against the active local puzzle solution line.
+    HandlePuzzlePlayerMove(MoveUci) {
+        // Ignores moves while loading, waiting for opponent reply, or already solved.
+        if (this.Busy || !this.ActivePuzzle || this.PuzzleSolved) {
+            return;
+        }
+        const ExpectedUci = this.ActivePuzzle.SolutionUci[this.PuzzleStepIndex];
+        const IsCorrect = MoveUci === ExpectedUci;
+        if (!IsCorrect) {
+            this.PuzzleHadMistake = true;
+            this.Puzzles.ResetStreak();
+            this.Board.TriggerBoardShake();
+            this.Feedback.PlayIllegal();
+            this.Status.SetMessage('Not quite — try another move or click Hint!');
+            this.Status.Render(this.State);
+            this.RenderPuzzlePanel();
+            return;
+        }
+
+        // Applies the correct tactical move and checks if the puzzle is complete.
+        this.Board.SetHintSquare(null);
+        this.Game.PlayerMove(MoveUci);
+        this.PuzzleStepIndex += One;
+        this.ApplyState(this.Game.GetState());
+        this.GameControlsBox.classList.add('Hidden');
+        this.MoveListBox.classList.add('Hidden');
+        this.PostGameControlsBox.classList.remove('Hidden');
+        if (this.PuzzleStepIndex >= this.ActivePuzzle.SolutionUci.length || this.State.GameOver) {
+            this.PuzzleSolved = true;
+            this.Puzzles.RecordSolved(this.PuzzleHadMistake);
+            this.Status.SetMessage('Puzzle solved! Brilliant tactic!');
+            this.Status.Render(this.State);
+            this.Board.SetMood('MoodVictory');
+            this.Board.SpawnVictorySparks();
+            this.Feedback.PlayVictory();
+            this.RenderPuzzlePanel();
+            return;
+        }
+
+        // Schedules the puzzle opponent's forced reply after a short beat.
+        this.Busy = true;
+        this.Status.SetMessage('Correct! Keep going...');
+        this.Status.Render(this.State);
+        this.PuzzleReplyTimerId = setTimeout(() => {
+            this.PuzzleReplyTimerId = null;
+            if (!this.InPuzzleMode || !this.ActivePuzzle) {
+                return;
+            }
+            const ReplyUci = this.ActivePuzzle.SolutionUci[this.PuzzleStepIndex];
+            if (ReplyUci) {
+                this.Game.ApplyBotMove(ReplyUci);
+                this.PuzzleStepIndex += One;
+            }
+            this.Busy = false;
+            this.Status.SetMessage('Your turn — find the follow-up!');
+            this.ApplyState(this.Game.GetState());
+            this.GameControlsBox.classList.add('Hidden');
+            this.MoveListBox.classList.add('Hidden');
+            this.PostGameControlsBox.classList.remove('Hidden');
+        }, PuzzleReplyDelayMs);
+    }
+
+    // Highlights the source square of the expected move as a tactical hint.
+    ShowPuzzleHint() {
+        // Marks the puzzle as assisted and highlights the piece to move.
+        if (!this.InPuzzleMode || !this.ActivePuzzle || this.PuzzleSolved) {
+            return;
+        }
+        const ExpectedUci = this.ActivePuzzle.SolutionUci[this.PuzzleStepIndex];
+        if (!ExpectedUci) {
+            return;
+        }
+        this.PuzzleHadMistake = true;
+        const HintSq = ExpectedUci.slice(Zero, Two);
+        this.Board.SetHintSquare(HintSq);
+        this.Board.Render(this.State.LegalMoves, this.State.LastMove);
+        this.Status.SetMessage(`Hint: look closely at the piece on ${HintSq.toUpperCase()}.`);
+        this.Status.Render(this.State);
+    }
+
+    // Renders the tactical puzzle panel with streak stats and Hint/Retry/Next controls.
+    RenderPuzzlePanel() {
+        // Builds the puzzle header, streak badges, Hint/Retry/Next controls, and link.
+        if (!this.PuzzleBox || !this.InPuzzleMode) {
+            return;
+        }
+        this.PuzzleBox.innerHTML = '';
+        const Panel = document.createElement('div');
+        Panel.className = 'Panel';
+        const Title = document.createElement('h3');
+        const Icon = document.createElement('i');
+        Icon.setAttribute('data-lucide', 'puzzle');
+        const TitleText = document.createElement('span');
+        TitleText.textContent = this.ActivePuzzle
+            ? `${this.ActivePuzzle.Title} (${this.ActivePuzzle.Rating})`
+            : 'Tactical Puzzle';
+        Title.appendChild(Icon);
+        Title.appendChild(TitleText);
+        Panel.appendChild(Title);
+
+        // Displays live streak and total solved badges.
+        const StatsRow = document.createElement('div');
+        StatsRow.className = 'PuzzleStatsRow';
+        const StreakBadge = document.createElement('span');
+        StreakBadge.className = 'Badge';
+        StreakBadge.textContent = `Streak: ${this.Puzzles.Stats.Streak}`;
+        const SolvedBadge = document.createElement('span');
+        SolvedBadge.className = 'Badge';
+        SolvedBadge.textContent = `Solved: ${this.Puzzles.Stats.Solved}`;
+        StatsRow.appendChild(StreakBadge);
+        StatsRow.appendChild(SolvedBadge);
+        Panel.appendChild(StatsRow);
+
+        // Displays Hint and Retry buttons for the active puzzle.
+        const ActionRow = document.createElement('div');
+        ActionRow.className = 'HistoryControls';
+        const HintBtn = document.createElement('button');
+        HintBtn.type = 'button';
+        HintBtn.className = 'HistoryButton';
+        HintBtn.textContent = 'Hint';
+        HintBtn.disabled = !this.ActivePuzzle || this.PuzzleSolved;
+        HintBtn.addEventListener('click', () => this.ShowPuzzleHint());
+        const RetryBtn = document.createElement('button');
+        RetryBtn.type = 'button';
+        RetryBtn.className = 'HistoryButton';
+        RetryBtn.textContent = 'Retry';
+        RetryBtn.disabled = !this.ActivePuzzle;
+        RetryBtn.addEventListener('click', () => {
+            if (this.ActivePuzzle) {
+                this.LoadActivePuzzle(this.ActivePuzzle);
+            }
+        });
+        ActionRow.appendChild(HintBtn);
+        ActionRow.appendChild(RetryBtn);
+        Panel.appendChild(ActionRow);
+
+        // Displays Next Random and Daily Puzzle switcher buttons.
+        const NextRow = document.createElement('div');
+        NextRow.className = 'Controls';
+        const NextBtn = document.createElement('button');
+        NextBtn.type = 'button';
+        NextBtn.className = 'PrimaryButton';
+        NextBtn.textContent = 'Next Puzzle';
+        NextBtn.addEventListener('click', () => this.StartPuzzleSession(false));
+        const DailyBtn = document.createElement('button');
+        DailyBtn.type = 'button';
+        DailyBtn.className = 'SecondaryButton';
+        DailyBtn.textContent = 'Daily';
+        DailyBtn.addEventListener('click', () => this.StartPuzzleSession(true));
+        NextRow.appendChild(NextBtn);
+        NextRow.appendChild(DailyBtn);
+        Panel.appendChild(NextRow);
+        this.PuzzleBox.appendChild(Panel);
+        this.RefreshIcons();
+    }
+
     // Handles dropping a dragged piece from FromSquare onto ToSquare.
     HandlePieceDrop(FromSquare, ToSquare) {
+        // Queues a premove if dropped during the opponent's turn in Bot or Multiplayer mode.
+        if (this.CanUsePremove(this.State) && this.ViewedFrameIndex === this.State.Frames.length - One && FromSquare !== ToSquare) {
+            const PieceChar = this.Board.PieceAt(FromSquare);
+            if (this.Board.IsPieceOfColor(PieceChar, this.State.PlayerColor)) {
+                this.QueuePremove(FromSquare, ToSquare);
+            }
+            return;
+        }
+
         // Ignores drops when not the local player's turn, busy, or viewing historical moves.
         if (!this.GameStarted || !this.IsLocalPlayerTurn() || this.Busy) {
             return;
@@ -1929,6 +2302,35 @@ class Controller {
 
     // Handles clicks on any of the 64 chess board squares.
     HandleSquareClick(SquareName) {
+        // Handles click-to-premove selection when waiting for the opponent's turn.
+        if (this.CanUsePremove(this.State) && this.ViewedFrameIndex === this.State.Frames.length - One) {
+            const ClickedPiece = this.Board.PieceAt(SquareName);
+            const IsFriendly = this.Board.IsPieceOfColor(ClickedPiece, this.State.PlayerColor);
+            if (this.PremoveOrigin === null) {
+                if (IsFriendly) {
+                    this.PremoveOrigin = SquareName;
+                    this.Board.UpdateSelectionInPlace(SquareName);
+                } else if (this.QueuedPremove) {
+                    this.ClearPremove();
+                    this.Board.Render([], this.State.LastMove);
+                }
+                return;
+            }
+            if (SquareName === this.PremoveOrigin) {
+                this.ClearPremove();
+                this.Board.ApplySelection(null);
+                this.Board.Render([], this.State.LastMove);
+                return;
+            }
+            if (IsFriendly) {
+                this.PremoveOrigin = SquareName;
+                this.Board.UpdateSelectionInPlace(SquareName);
+                return;
+            }
+            this.QueuePremove(this.PremoveOrigin, SquareName);
+            return;
+        }
+
         // Applies Sandbox piece addition or removal when an editor tool is selected.
         if (this.GameStarted && this.State && this.State.IsSandbox && this.SandboxTool !== 'move') {
             if (this.ViewedFrameIndex < this.State.Frames.length - One) {

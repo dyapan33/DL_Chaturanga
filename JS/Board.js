@@ -48,6 +48,9 @@ class BoardView {
         this.Arrows = [];
         this.LegalMoves = [];
         this.LastMove = null;
+        this.Premove = null;
+        this.HintSquare = null;
+        this.PremoveColor = null;
         this.CheckedKingSquare = null;
         this.CheckmatedKingSquare = null;
         this.EnPassantSquare = null;
@@ -146,6 +149,19 @@ class BoardView {
                 Layer.parentNode.removeChild(Layer);
             }
         }, VictorySparkCleanupMs);
+    }
+
+    // Sets the queued premove UCI string (or null to clear) and player color allowed to premove.
+    SetPremoveState(PremoveUci, PremoveColor) {
+        // Stores the premove highlight squares and premove-eligible piece color.
+        this.Premove = PremoveUci || null;
+        this.PremoveColor = PremoveColor || null;
+    }
+
+    // Sets an optional puzzle hint square highlight (or null to clear).
+    SetHintSquare(SquareName) {
+        // Stores the hint source square name.
+        this.HintSquare = SquareName || null;
     }
 
     // Sets whether the board is viewed from Black's perspective (flipped).
@@ -248,9 +264,15 @@ class BoardView {
         Cell.className = 'Square ' + (IsLight ? 'Light' : 'Dark');
         Cell.dataset.square = SquareName;
 
-        // Applies last-move, selection, capture impact, and red king-in-check highlight classes.
+        // Applies last-move, selection, premove, hint, capture impact, and king-in-check classes.
         if (this.LastMove && (this.LastMove.slice(Zero, Two) === SquareName || this.LastMove.slice(Two, Four) === SquareName)) {
             Cell.classList.add('LastMove');
+        }
+        if (this.Premove && (this.Premove.slice(Zero, Two) === SquareName || this.Premove.slice(Two, Four) === SquareName)) {
+            Cell.classList.add('PremoveSquare');
+        }
+        if (this.HintSquare === SquareName) {
+            Cell.classList.add('PuzzleHintSquare');
         }
         if (this.AnimateNextMove && this.LastMoveWasCapture && this.LastMove && this.LastMove.slice(Two, Four) === SquareName) {
             Cell.classList.add('CaptureImpact');
@@ -557,7 +579,8 @@ class BoardView {
         }
         ImageElement.src = AssetPath;
         ImageElement.alt = GlyphKey;
-        const CanDrag = this.Interactive && this.LegalMoves.some((Item) => Item.slice(Zero, Two) === SquareName);
+        const IsPremovePiece = !this.Interactive && this.PremoveColor !== null && this.IsPieceOfColor(GlyphKey, this.PremoveColor);
+        const CanDrag = (this.Interactive && this.LegalMoves.some((Item) => Item.slice(Zero, Two) === SquareName)) || IsPremovePiece;
         ImageElement.draggable = CanDrag;
         ImageElement.addEventListener('dragstart', (Event) => {
             if (!CanDrag) {
@@ -665,6 +688,16 @@ class BoardView {
         for (let Index = Zero; Index < Cells.length; Index += One) {
             Cells[Index].classList.remove('DragHover');
         }
+    }
+
+    // Checks whether a FEN piece character belongs to ColorCode ('w' or 'b').
+    IsPieceOfColor(PieceChar, ColorCode) {
+        // Uppercase FEN characters are White; lowercase characters are Black.
+        if (!PieceChar) {
+            return false;
+        }
+        const IsUpper = PieceChar === PieceChar.toUpperCase();
+        return ColorCode === 'w' ? IsUpper : !IsUpper;
     }
 
     // Reads the piece character at SquareName from the current FEN string.
