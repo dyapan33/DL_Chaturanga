@@ -524,10 +524,20 @@ class BoardView {
         this.Selected = SquareName;
     }
 
-    // Marks legal destination squares for the currently selected piece.
+    // Marks legal destination squares or pseudo-legal premove squares for the selected piece.
     AddTargets(Cell, SquareName) {
         // Skips target rendering when no source square is currently selected.
         if (!this.Selected) {
+            return;
+        }
+
+        // Renders premove target hints when selecting a friendly piece on the opponent's turn.
+        if (!this.Interactive && this.PremoveColor !== null) {
+            const PremoveTargets = this.ComputePremoveTargets(this.Selected);
+            if (PremoveTargets.includes(SquareName)) {
+                const Occupied = this.PieceAt(SquareName) !== '';
+                Cell.classList.add(Occupied ? 'CaptureHint' : 'Dot');
+            }
             return;
         }
 
@@ -544,6 +554,91 @@ class BoardView {
         const IsEnPassantCapture = SelectedPiece === 'P' && SquareName === this.EnPassantSquare && this.Selected[Zero] !== SquareName[Zero];
         const Occupied = this.PieceAt(SquareName) !== '' || IsEnPassantCapture;
         Cell.classList.add(Occupied ? 'CaptureHint' : 'Dot');
+    }
+
+    // Computes all geometric premove destination squares for the piece on FromSquare.
+    ComputePremoveTargets(FromSquare) {
+        // Parses the piece type, color, file index, and rank index on FromSquare.
+        const PieceChar = this.PieceAt(FromSquare);
+        if (!PieceChar) {
+            return [];
+        }
+        const IsWhite = PieceChar === PieceChar.toUpperCase();
+        const Kind = PieceChar.toUpperCase();
+        const FileIdx = FileLetters.indexOf(FromSquare[Zero]);
+        const RankNum = Number(FromSquare[One]);
+        const Targets = [];
+        const AddIfInBounds = (NextFile, NextRank) => {
+            if (NextFile >= Zero && NextFile < Eight && NextRank >= One && NextRank <= Eight) {
+                Targets.push(FileLetters[NextFile] + String(NextRank));
+            }
+        };
+        const AddRays = (Directions) => {
+            for (let DirIndex = Zero; DirIndex < Directions.length; DirIndex += One) {
+                const StepF = Directions[DirIndex][Zero];
+                const StepR = Directions[DirIndex][One];
+                let CursorF = FileIdx + StepF;
+                let CursorR = RankNum + StepR;
+                while (CursorF >= Zero && CursorF < Eight && CursorR >= One && CursorR <= Eight) {
+                    Targets.push(FileLetters[CursorF] + String(CursorR));
+                    CursorF += StepF;
+                    CursorR += StepR;
+                }
+            }
+        };
+
+        // Generates full-board premove geometry for Pawn, Knight, Bishop, Rook, Queen, and King.
+        if (Kind === 'P') {
+            const Step = IsWhite ? One : NegativeOne;
+            const StartRank = IsWhite ? Two : Seven;
+            AddIfInBounds(FileIdx, RankNum + Step);
+            if (RankNum === StartRank) {
+                AddIfInBounds(FileIdx, RankNum + Step + Step);
+            }
+            AddIfInBounds(FileIdx - One, RankNum + Step);
+            AddIfInBounds(FileIdx + One, RankNum + Step);
+            return Targets;
+        }
+        if (Kind === 'N') {
+            const Jumps = [
+                [One, Two], [Two, One], [Two, -One], [One, -Two],
+                [-One, -Two], [-Two, -One], [-Two, One], [-One, Two]
+            ];
+            for (let Index = Zero; Index < Jumps.length; Index += One) {
+                AddIfInBounds(FileIdx + Jumps[Index][Zero], RankNum + Jumps[Index][One]);
+            }
+            return Targets;
+        }
+        if (Kind === 'B') {
+            AddRays([[One, One], [One, NegativeOne], [NegativeOne, One], [NegativeOne, NegativeOne]]);
+            return Targets;
+        }
+        if (Kind === 'R') {
+            AddRays([[One, Zero], [NegativeOne, Zero], [Zero, One], [Zero, NegativeOne]]);
+            return Targets;
+        }
+        if (Kind === 'Q') {
+            AddRays([
+                [One, One], [One, NegativeOne], [NegativeOne, One], [NegativeOne, NegativeOne],
+                [One, Zero], [NegativeOne, Zero], [Zero, One], [Zero, NegativeOne]
+            ]);
+            return Targets;
+        }
+        if (Kind === 'K') {
+            const KingSteps = [
+                [One, One], [One, Zero], [One, NegativeOne], [Zero, One],
+                [Zero, NegativeOne], [NegativeOne, One], [NegativeOne, Zero], [NegativeOne, NegativeOne]
+            ];
+            for (let Index = Zero; Index < KingSteps.length; Index += One) {
+                AddIfInBounds(FileIdx + KingSteps[Index][Zero], RankNum + KingSteps[Index][One]);
+            }
+            if (IsWhite && FromSquare === 'e1') {
+                Targets.push('g1', 'c1');
+            } else if (!IsWhite && FromSquare === 'e8') {
+                Targets.push('g8', 'c8');
+            }
+        }
+        return Targets;
     }
 
     // Appends the SVG piece image from Assets to the square element if occupied.

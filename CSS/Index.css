@@ -223,6 +223,24 @@
     box-shadow: inset var(--Zero) var(--Zero) var(--Zero) var(--ActivePressY) var(--OverColor);
 }
 
+.SavedGameCard.LockedSavedGame {
+    opacity: var(--DisabledOpacity);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.AppSidebar.SidebarLocked .SidebarLogo {
+    pointer-events: none;
+    opacity: var(--LowOpacity);
+}
+
+.AppSidebar.SidebarLocked .SidebarActionBtn,
+.AppSidebar.SidebarLocked #SidebarFilterButton {
+    opacity: var(--DisabledOpacity);
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 .SavedGameTopRow {
     display: flex;
     align-items: center;

@@ -18,8 +18,16 @@ const MidLowEloThreshold = 1100;
 const MidHighEloThreshold = 1900;
 const MaxNoiseScale = 350;
 const EloSpan = 2600;
-const MinBotDelayMs = 1000;
-const MaxBotDelayMs = 5000;
+const MinBotDelayMs = 450;
+const MaxBotDelayMs = 1150;
+const StockfishCdnUrl = 'https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js';
+const StockfishTimeoutMs = 5500;
+const MaxStockfishSkill = 20;
+const StockfishBaseDepth = 3;
+const StockfishDepthScale = 230;
+const StockfishMaxDepth = 15;
+const StockfishBaseTimeMs = 250;
+const StockfishMaxTimeMs = 1550;
 
 // Maps piece types to their centipawn material scores.
 const PieceMaterialMap = {
@@ -31,14 +39,147 @@ const PieceMaterialMap = {
     K: KingValue
 };
 
-// Selects moves for the bot side scaled by the configured Elo rating from 100 to 2700.
+// Selects moves for the bot side using Stockfish Web Worker scaled by Elo (1 to 2700).
 class ChessBot {
     Initialize() {
-        // Stores the default Elo rating for the bot instance.
+        // Initializes default Elo state and boots the Stockfish Web Worker.
         this.EloRating = DefaultBotElo;
+        this.EngineWorker = null;
+        this.EngineReady = false;
+        this.PendingCallback = null;
+        this.PendingTimeoutId = null;
+        this.InitStockfishWorker();
     }
 
-    // Returns a random thinking delay between 1 and 5 seconds (1000 to 5000 ms).
+    // Spawns a single-threaded Stockfish Web Worker via a same-origin Blob wrapper.
+    InitStockfishWorker() {
+        // Skips worker creation in non-browser environments without Worker or Blob.
+        if (typeof Worker !== 'function' || typeof Blob !== 'function' || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') {
+            return;
+        }
+        try {
+            const Bootstrap = `importScripts('${StockfishCdnUrl}');`;
+            const WorkerBlob = new Blob([Bootstrap], { type: 'application/javascript' });
+            const WorkerUrl = URL.createObjectURL(WorkerBlob);
+            const WorkerObj = new Worker(WorkerUrl);
+            this.EngineWorker = WorkerObj;
+            WorkerObj.onmessage = (Event) => {
+                const Line = typeof Event === 'string' ? Event : (Event && typeof Event.data === 'string' ? Event.data : '');
+                this.HandleStockfishLine(Line);
+            };
+            WorkerObj.onerror = () => {
+                this.EngineReady = false;
+                this.EngineWorker = null;
+            };
+            WorkerObj.postMessage('uci');
+        } catch (Error) {
+            this.EngineWorker = null;
+            this.EngineReady = false;
+        }
+    }
+
+    // Processes UCI output lines emitted by the Stockfish Web Worker.
+    HandleStockfishLine(Line) {
+        // Marks the engine ready on uciok and resolves pending searches on bestmove.
+        if (!Line) {
+            return;
+        }
+        if (Line.includes('uciok')) {
+            this.EngineReady = true;
+            return;
+        }
+        if (Line.startsWith('bestmove ')) {
+            const Parts = Line.trim().split(/\s+/);
+            const BestMove = Parts.length > One ? Parts[One] : '';
+            const Callback = this.PendingCallback;
+            this.ClearPendingSearch();
+            if (Callback) {
+                Callback(BestMove);
+            }
+        }
+    }
+
+    // Clears any active Stockfish search callback and fallback timeout.
+    ClearPendingSearch() {
+        // Resets PendingCallback and cancels PendingTimeoutId if scheduled.
+        this.PendingCallback = null;
+        if (this.PendingTimeoutId !== null) {
+            clearTimeout(this.PendingTimeoutId);
+            this.PendingTimeoutId = null;
+        }
+    }
+
+    // Computes a Stockfish Skill Level (0 to 20) proportional to the bot's Elo rating.
+    ComputeStockfishSkill(EloRating) {
+        // Maps Elo from BotFirstElo..BotLastElo linearly onto 0..MaxStockfishSkill.
+        const Ratio = Math.max(Zero, Math.min(One, (EloRating - BotFirstElo) / EloSpan));
+        return Math.round(Ratio * MaxStockfishSkill);
+    }
+
+    // Computes Stockfish search depth and movetime scaled by Elo rating.
+    ComputeStockfishLimits(EloRating) {
+        // Scales depth from 3 to 15 and movetime from 250ms to 1550ms.
+        const RawDepth = StockfishBaseDepth + Math.floor(EloRating / StockfishDepthScale);
+        const Depth = Math.max(One, Math.min(StockfishMaxDepth, RawDepth));
+        const Ratio = Math.max(Zero, Math.min(One, (EloRating - BotFirstElo) / EloSpan));
+        const MoveTimeMs = Math.round(StockfishBaseTimeMs + Ratio * (StockfishMaxTimeMs - StockfishBaseTimeMs));
+        return { Depth: Depth, MoveTimeMs: MoveTimeMs };
+    }
+
+    // Chooses a move asynchronously using Stockfish, falling back to local search if offline.
+    ChooseMoveAsync(GameInstance, EloRating, BotIsWhite, OnResult) {
+        // Handles single-move, Ella (1 Elo), and offline fallback cases immediately.
+        const ForWhite = Boolean(BotIsWhite);
+        const LegalMoves = GameInstance.GenerateLegalMoves(ForWhite);
+        if (LegalMoves.length === Zero) {
+            OnResult(null);
+            return;
+        }
+        if (LegalMoves.length === One) {
+            OnResult(LegalMoves[Zero]);
+            return;
+        }
+        if (EloRating <= EllaBotElo) {
+            const RandomIndex = Math.floor(Math.random() * LegalMoves.length);
+            OnResult(LegalMoves[RandomIndex]);
+            return;
+        }
+        if (!this.EngineWorker || !this.EngineReady) {
+            OnResult(this.ChooseMove(GameInstance, EloRating, BotIsWhite));
+            return;
+        }
+
+        // Sends Elo-scaled Stockfish UCI commands with a timeout fallback.
+        this.ClearPendingSearch();
+        const Fen = GameInstance.GenerateFen();
+        const Skill = this.ComputeStockfishSkill(EloRating);
+        const Limits = this.ComputeStockfishLimits(EloRating);
+        this.PendingCallback = (EngineMove) => {
+            if (EngineMove && LegalMoves.includes(EngineMove)) {
+                OnResult(EngineMove);
+                return;
+            }
+            OnResult(this.ChooseMove(GameInstance, EloRating, BotIsWhite));
+        };
+        this.PendingTimeoutId = setTimeout(() => {
+            const Callback = this.PendingCallback;
+            this.ClearPendingSearch();
+            if (Callback) {
+                Callback('');
+            }
+        }, StockfishTimeoutMs);
+        try {
+            this.EngineWorker.postMessage('stop');
+            this.EngineWorker.postMessage(`setoption name Skill Level value ${Skill}`);
+            this.EngineWorker.postMessage(`position fen ${Fen}`);
+            this.EngineWorker.postMessage(`go depth ${Limits.Depth} movetime ${Limits.MoveTimeMs}`);
+        } catch (Error) {
+            this.ClearPendingSearch();
+            OnResult(this.ChooseMove(GameInstance, EloRating, BotIsWhite));
+        }
+    }
+
+    // Returns a short natural thinking delay before triggering the bot move.
     GetThinkingDelay() {
         // Computes a uniform random duration in milliseconds within [MinBotDelayMs, MaxBotDelayMs].
         const Span = MaxBotDelayMs - MinBotDelayMs;

@@ -169,12 +169,18 @@ class Controller {
             this.ClearRoomQueryFromUrl();
             this.ShowPreGameSetup();
         };
+        const GuardedReturnToSetup = () => {
+            if (this.IsInActiveGame()) {
+                return;
+            }
+            ReturnToSetup();
+        };
         document.getElementById('NewGameButton').addEventListener('click', ReturnToSetup);
         if (this.SidebarLogo) {
-            this.SidebarLogo.addEventListener('click', ReturnToSetup);
+            this.SidebarLogo.addEventListener('click', GuardedReturnToSetup);
         }
         if (this.SidebarHomeButton) {
-            this.SidebarHomeButton.addEventListener('click', ReturnToSetup);
+            this.SidebarHomeButton.addEventListener('click', GuardedReturnToSetup);
         }
         if (this.MobileMenuButton) {
             this.MobileMenuButton.addEventListener('click', () => this.OpenSidebar());
@@ -186,19 +192,29 @@ class Controller {
             this.SidebarAudioButton.addEventListener('click', () => this.ToggleFeedbackAudio());
         }
         if (this.SidebarFilterButton) {
-            this.SidebarFilterButton.addEventListener('click', () => this.CycleSavedGamesFilter());
+            this.SidebarFilterButton.addEventListener('click', () => {
+                if (!this.IsInActiveGame()) {
+                    this.CycleSavedGamesFilter();
+                }
+            });
         }
         if (this.SidebarBackdrop) {
             this.SidebarBackdrop.addEventListener('click', () => this.CloseMobileSidebar());
         }
         if (this.SidebarDailyPuzzleButton) {
             this.SidebarDailyPuzzleButton.addEventListener('click', () => {
+                if (this.IsInActiveGame()) {
+                    return;
+                }
                 this.CloseMobileSidebar();
                 this.StartPuzzleSession(true);
             });
         }
         if (this.SidebarRandomPuzzleButton) {
             this.SidebarRandomPuzzleButton.addEventListener('click', () => {
+                if (this.IsInActiveGame()) {
+                    return;
+                }
                 this.CloseMobileSidebar();
                 this.StartPuzzleSession(false);
             });
@@ -306,6 +322,7 @@ class Controller {
         this.GameControlsBox.classList.add('Hidden');
         this.PostGameControlsBox.classList.add('Hidden');
         this.UpdateSidebarNavActive('home');
+        this.UpdateSidebarLockState();
         this.RenderSavedGamesSidebar();
         this.RefreshIcons();
     }
@@ -495,6 +512,9 @@ class Controller {
         this.GameControlsBox.classList.remove('Hidden');
         this.PostGameControlsBox.classList.add('Hidden');
         this.Game.Start(Elo, OddsPieces, OddsTimes, PlayerColor, IsMultiplayer, IsSandbox);
+        this.State = this.Game.GetState();
+        this.UpdateSidebarLockState();
+        this.RenderSavedGamesSidebar();
         this.StartClockTimer();
     }
 
@@ -1021,12 +1041,15 @@ class Controller {
         }
     }
 
-    // Cancels any scheduled bot timer to prevent stale callbacks or leaks.
+    // Cancels any scheduled bot timer or pending Stockfish search to prevent stale callbacks.
     ClearBotTimer() {
-        // Clears the active timeout identifier if one is scheduled.
+        // Clears the active timeout identifier and cancels any pending Stockfish callback.
         if (this.BotTimerId !== null) {
             clearTimeout(this.BotTimerId);
             this.BotTimerId = null;
+        }
+        if (this.Bot && this.Bot.ClearPendingSearch) {
+            this.Bot.ClearPendingSearch();
         }
     }
 
@@ -1241,29 +1264,31 @@ class Controller {
         }, DelayMs);
     }
 
-    // Computes and applies a single bot move, chaining extra moves if odds apply.
+    // Computes and applies a single bot move using Stockfish, chaining extra moves if odds apply.
     ExecuteBotTurn() {
-        // Chooses a move for the bot's color and applies it to the game state.
+        // Requests an Elo-scaled move from Stockfish and applies it when ready.
         if (!this.State || this.State.GameOver) {
             this.Busy = false;
             return;
         }
         const BotIsWhite = this.State.PlayerColor === 'b';
-        const BotMoveUci = this.Bot.ChooseMove(this.Game, this.State.BotElo, BotIsWhite);
-        if (BotMoveUci) {
-            this.Game.ApplyBotMove(BotMoveUci);
-            this.ApplyClockIncrement(BotIsWhite ? 'w' : 'b');
-        }
-        this.ApplyState(this.Game.GetState());
-
-        // Schedules another bot move if multi-move odds grant an extra turn.
-        if (!this.State.GameOver && this.State.Turn !== this.State.PlayerColor) {
-            this.ScheduleBotTurn();
-            return;
-        }
-
-        // Releases the busy lock once control returns to the player.
-        this.Busy = false;
+        const ActiveMatchId = this.ActiveGameId;
+        this.Bot.ChooseMoveAsync(this.Game, this.State.BotElo, BotIsWhite, (BotMoveUci) => {
+            if (!this.GameStarted || this.ActiveGameId !== ActiveMatchId || !this.State || this.State.GameOver) {
+                this.Busy = false;
+                return;
+            }
+            if (BotMoveUci) {
+                this.Game.ApplyBotMove(BotMoveUci);
+                this.ApplyClockIncrement(BotIsWhite ? 'w' : 'b');
+            }
+            this.ApplyState(this.Game.GetState());
+            if (!this.State.GameOver && this.State.Turn !== this.State.PlayerColor) {
+                this.ScheduleBotTurn();
+                return;
+            }
+            this.Busy = false;
+        });
     }
 
     // Handles the player's request to offer a draw to the bot or multiplayer opponent.
@@ -1617,9 +1642,48 @@ class Controller {
         }
     }
 
+    // Checks whether a live match is currently in progress and sidebar switching is locked.
+    IsInActiveGame() {
+        // Returns true while playing an unfinished Bot, Multiplayer, or Sandbox game.
+        return Boolean(
+            this.GameStarted
+            && !this.ReviewingGame
+            && !this.InPuzzleMode
+            && this.State
+            && !this.State.GameOver
+        );
+    }
+
+    // Locks or unlocks sidebar navigation and game archive controls during an active match.
+    UpdateSidebarLockState() {
+        // Disables Home, Puzzles, Filter, and game cards while a live game is running.
+        const Locked = this.IsInActiveGame();
+        if (this.AppSidebar) {
+            if (Locked) {
+                this.AppSidebar.classList.add('SidebarLocked');
+            } else {
+                this.AppSidebar.classList.remove('SidebarLocked');
+            }
+        }
+        const LockableButtons = [
+            this.SidebarHomeButton,
+            this.SidebarDailyPuzzleButton,
+            this.SidebarRandomPuzzleButton,
+            this.SidebarFilterButton
+        ];
+        for (let Index = Zero; Index < LockableButtons.length; Index += One) {
+            if (LockableButtons[Index]) {
+                LockableButtons[Index].disabled = Locked;
+            }
+        }
+    }
+
     // Opens a saved game from localStorage for move-by-move inspection on the board.
     OpenSavedGame(GameId) {
-        // Closes mobile drawer, loads the saved record, and exits any live game or lobby.
+        // Blocks switching to another saved game while a live game is still in progress.
+        if (this.IsInActiveGame()) {
+            return;
+        }
         this.CloseMobileSidebar();
         const Record = this.Store.GetGameById(GameId);
         if (!Record || !Record.Frames || Record.Frames.length === Zero) {
@@ -1715,9 +1779,14 @@ class Controller {
 
     // Builds a single sidebar card representing a saved game in localStorage.
     BuildSavedGameCard(Record, IsActive) {
-        // Creates the card container, title row, delete button, and outcome metadata.
+        // Creates the card container, locking interaction while an active game is running.
+        const IsLocked = this.IsInActiveGame();
         const Card = document.createElement('div');
-        Card.className = IsActive ? 'SavedGameCard ActiveSavedGame' : 'SavedGameCard';
+        let CardClass = IsActive ? 'SavedGameCard ActiveSavedGame' : 'SavedGameCard';
+        if (IsLocked) {
+            CardClass += ' LockedSavedGame';
+        }
+        Card.className = CardClass;
         const TopRow = document.createElement('div');
         TopRow.className = 'SavedGameTopRow';
         const Title = document.createElement('span');
@@ -1728,8 +1797,12 @@ class Controller {
         DeleteBtn.className = 'SavedGameDeleteBtn';
         DeleteBtn.textContent = '×';
         DeleteBtn.title = 'Delete game';
+        DeleteBtn.disabled = IsLocked;
         DeleteBtn.addEventListener('click', (Event) => {
             Event.stopPropagation();
+            if (this.IsInActiveGame()) {
+                return;
+            }
             this.Store.DeleteGame(Record.Id);
             if (this.ReviewingGame && this.ReviewingGame.Id === Record.Id) {
                 this.ShowPreGameSetup();
@@ -1756,7 +1829,9 @@ class Controller {
         Card.appendChild(TopRow);
         Card.appendChild(MetaRow);
         Card.addEventListener('click', () => {
-            this.OpenSavedGame(Record.Id);
+            if (!this.IsInActiveGame()) {
+                this.OpenSavedGame(Record.Id);
+            }
         });
         return Card;
     }
@@ -1815,6 +1890,10 @@ class Controller {
         this.UpdateEmotiveMood(NewState);
         if (!this.InPuzzleMode) {
             this.PersistActiveGame(NewState);
+            this.UpdateSidebarLockState();
+            if (NewState.GameOver) {
+                this.RenderSavedGamesSidebar();
+            }
         }
         if (NewState.IsSandbox) {
             this.RenderSandboxPanel();
@@ -2325,7 +2404,7 @@ class Controller {
         Title.appendChild(TitleText);
         Panel.appendChild(Title);
 
-        // Displays live streak and total solved badges.
+        // Displays live streak, total solved badges, and puzzle Elo selector.
         const StatsRow = document.createElement('div');
         StatsRow.className = 'PuzzleStatsRow';
         const StreakBadge = document.createElement('span');
@@ -2337,6 +2416,31 @@ class Controller {
         StatsRow.appendChild(StreakBadge);
         StatsRow.appendChild(SolvedBadge);
         Panel.appendChild(StatsRow);
+
+        // Builds the Elo tier dropdown for Daily and Random puzzles.
+        const EloRow = document.createElement('div');
+        EloRow.className = 'SelectorRow';
+        const EloLabel = document.createElement('label');
+        EloLabel.textContent = 'Puzzle Elo Difficulty:';
+        const EloSelect = document.createElement('select');
+        for (let Index = Zero; Index < PuzzleEloTiers.length; Index += One) {
+            const Tier = PuzzleEloTiers[Index];
+            const Option = document.createElement('option');
+            Option.value = Tier.Key;
+            Option.textContent = Tier.Label;
+            if (Tier.Key === this.Puzzles.Stats.EloTier) {
+                Option.selected = true;
+            }
+            EloSelect.appendChild(Option);
+        }
+        EloSelect.addEventListener('change', () => {
+            this.Puzzles.SetEloTier(EloSelect.value);
+            const KeepDaily = this.ActivePuzzle ? this.ActivePuzzle.IsDaily : true;
+            this.StartPuzzleSession(KeepDaily);
+        });
+        EloRow.appendChild(EloLabel);
+        EloRow.appendChild(EloSelect);
+        Panel.appendChild(EloRow);
 
         // Displays Hint and Retry buttons for the active puzzle.
         const ActionRow = document.createElement('div');
@@ -2383,11 +2487,14 @@ class Controller {
 
     // Handles dropping a dragged piece from FromSquare onto ToSquare.
     HandlePieceDrop(FromSquare, ToSquare) {
-        // Queues a premove if dropped during the opponent's turn in Bot or Multiplayer mode.
+        // Queues a premove if dropped onto a valid geometric premove square on opponent's turn.
         if (this.CanUsePremove(this.State) && this.ViewedFrameIndex === this.State.Frames.length - One && FromSquare !== ToSquare) {
             const PieceChar = this.Board.PieceAt(FromSquare);
             if (this.Board.IsPieceOfColor(PieceChar, this.State.PlayerColor)) {
-                this.QueuePremove(FromSquare, ToSquare);
+                const ValidTargets = this.Board.ComputePremoveTargets(FromSquare);
+                if (ValidTargets.includes(ToSquare)) {
+                    this.QueuePremove(FromSquare, ToSquare);
+                }
             }
             return;
         }
@@ -2421,7 +2528,7 @@ class Controller {
 
     // Handles clicks on any of the 64 chess board squares.
     HandleSquareClick(SquareName) {
-        // Handles click-to-premove selection when waiting for the opponent's turn.
+        // Handles click-to-premove selection with geometric premove target validation.
         if (this.CanUsePremove(this.State) && this.ViewedFrameIndex === this.State.Frames.length - One) {
             const ClickedPiece = this.Board.PieceAt(SquareName);
             const IsFriendly = this.Board.IsPieceOfColor(ClickedPiece, this.State.PlayerColor);
@@ -2441,12 +2548,19 @@ class Controller {
                 this.Board.Render([], this.State.LastMove);
                 return;
             }
+            const ValidTargets = this.Board.ComputePremoveTargets(this.PremoveOrigin);
+            if (ValidTargets.includes(SquareName)) {
+                this.QueuePremove(this.PremoveOrigin, SquareName);
+                return;
+            }
             if (IsFriendly) {
                 this.PremoveOrigin = SquareName;
                 this.Board.UpdateSelectionInPlace(SquareName);
                 return;
             }
-            this.QueuePremove(this.PremoveOrigin, SquareName);
+            this.ClearPremove();
+            this.Board.ApplySelection(null);
+            this.Board.Render([], this.State.LastMove);
             return;
         }
 
