@@ -33,6 +33,8 @@ const RequestCooldownSeconds = Ten;
 const LowClockWarningSeconds = 15;
 const CooldownTickMs = 1000;
 const PremoveExecDelayMs = 50;
+const MobileBreakpointPx = 750;
+const SidebarFilterModes = ['all', 'Win', 'Loss', 'Draw'];
 const ValidUciPattern = new RegExp('^[a-h][1-8][a-h][1-8][qrbn]?$');
 
 // Coordinates user input, drag-and-drop, multiplayer, chess rules, clocks, and bot responses.
@@ -78,6 +80,7 @@ class Controller {
         this.PuzzleSolved = false;
         this.PuzzleHadMistake = false;
         this.PuzzleReplyTimerId = null;
+        this.GameFilterIndex = Zero;
         this.ViewedFrameIndex = Zero;
         this.Game = new ChessGame();
         this.Game.Initialize();
@@ -135,6 +138,10 @@ class Controller {
         this.SidebarBackdrop = document.getElementById('SidebarBackdrop');
         this.MobileMenuButton = document.getElementById('MobileMenuButton');
         this.SidebarCloseButton = document.getElementById('SidebarCloseButton');
+        this.SidebarAudioButton = document.getElementById('SidebarAudioButton');
+        this.SidebarFilterButton = document.getElementById('SidebarFilterButton');
+        this.SidebarHomeButton = document.getElementById('SidebarHomeButton');
+        this.SidebarGamesLabel = document.getElementById('SidebarGamesLabel');
         this.SidebarDailyPuzzleButton = document.getElementById('SidebarDailyPuzzleButton');
         this.SidebarRandomPuzzleButton = document.getElementById('SidebarRandomPuzzleButton');
         this.SavedGamesListBox = document.getElementById('SavedGamesList');
@@ -166,11 +173,20 @@ class Controller {
         if (this.SidebarLogo) {
             this.SidebarLogo.addEventListener('click', ReturnToSetup);
         }
+        if (this.SidebarHomeButton) {
+            this.SidebarHomeButton.addEventListener('click', ReturnToSetup);
+        }
         if (this.MobileMenuButton) {
-            this.MobileMenuButton.addEventListener('click', () => this.ToggleMobileSidebar());
+            this.MobileMenuButton.addEventListener('click', () => this.OpenSidebar());
         }
         if (this.SidebarCloseButton) {
-            this.SidebarCloseButton.addEventListener('click', () => this.CloseMobileSidebar());
+            this.SidebarCloseButton.addEventListener('click', () => this.CloseSidebar());
+        }
+        if (this.SidebarAudioButton) {
+            this.SidebarAudioButton.addEventListener('click', () => this.ToggleFeedbackAudio());
+        }
+        if (this.SidebarFilterButton) {
+            this.SidebarFilterButton.addEventListener('click', () => this.CycleSavedGamesFilter());
         }
         if (this.SidebarBackdrop) {
             this.SidebarBackdrop.addEventListener('click', () => this.CloseMobileSidebar());
@@ -234,6 +250,7 @@ class Controller {
         this.Network.Disconnect();
         this.InPuzzleMode = false;
         this.ActivePuzzle = null;
+        this.UpdateSidebarNavActive('');
         this.Board.SetHintSquare(null);
         this.Status.SetRoomCode('');
         this.Status.SetMessage('');
@@ -288,6 +305,7 @@ class Controller {
         this.MoveListBox.classList.add('Hidden');
         this.GameControlsBox.classList.add('Hidden');
         this.PostGameControlsBox.classList.add('Hidden');
+        this.UpdateSidebarNavActive('home');
         this.RenderSavedGamesSidebar();
         this.RefreshIcons();
     }
@@ -439,6 +457,7 @@ class Controller {
         this.Selector.ResetMultiplayerState();
         this.InPuzzleMode = false;
         this.ActivePuzzle = null;
+        this.UpdateSidebarNavActive('');
         this.Board.SetHintSquare(null);
         if (this.PuzzleBox) {
             this.PuzzleBox.classList.add('Hidden');
@@ -1482,6 +1501,94 @@ class Controller {
         this.RenderSavedGamesSidebar();
     }
 
+    // Highlights the active sidebar navigation button (home, daily, random, or none).
+    UpdateSidebarNavActive(ActiveKey) {
+        // Applies ActiveSidebarNav to the matching sidebar button and clears the others.
+        const Entries = [
+            { Key: 'home', Button: this.SidebarHomeButton },
+            { Key: 'daily', Button: this.SidebarDailyPuzzleButton },
+            { Key: 'random', Button: this.SidebarRandomPuzzleButton }
+        ];
+        for (let Index = Zero; Index < Entries.length; Index += One) {
+            const Entry = Entries[Index];
+            if (!Entry.Button) {
+                continue;
+            }
+            if (Entry.Key === ActiveKey) {
+                Entry.Button.classList.add('ActiveSidebarNav');
+            } else {
+                Entry.Button.classList.remove('ActiveSidebarNav');
+            }
+        }
+    }
+
+    // Opens the sidebar on desktop or slides out the mobile drawer.
+    OpenSidebar() {
+        // Expands the desktop sidebar or toggles the mobile drawer open.
+        if (!this.AppSidebar) {
+            return;
+        }
+        if (typeof window !== 'undefined' && window.innerWidth <= MobileBreakpointPx) {
+            this.ToggleMobileSidebar();
+            return;
+        }
+        this.AppSidebar.classList.remove('SidebarCollapsed');
+        if (this.MobileMenuButton) {
+            this.MobileMenuButton.classList.remove('ShowDesktopToggle');
+        }
+    }
+
+    // Closes the sidebar on desktop or slides shut the mobile drawer.
+    CloseSidebar() {
+        // Collapses the desktop sidebar and reveals the reopen button, or closes mobile drawer.
+        if (!this.AppSidebar) {
+            return;
+        }
+        if (typeof window !== 'undefined' && window.innerWidth <= MobileBreakpointPx) {
+            this.CloseMobileSidebar();
+            return;
+        }
+        this.AppSidebar.classList.add('SidebarCollapsed');
+        if (this.MobileMenuButton) {
+            this.MobileMenuButton.classList.add('ShowDesktopToggle');
+        }
+    }
+
+    // Toggles sound effects and mobile haptics on or off from the sidebar toolbar.
+    ToggleFeedbackAudio() {
+        // Flips Feedback.Enabled and updates the volume icon and active highlight.
+        if (!this.Feedback || !this.SidebarAudioButton) {
+            return;
+        }
+        this.Feedback.Enabled = !this.Feedback.Enabled;
+        const IconName = this.Feedback.Enabled ? 'volume-2' : 'volume-x';
+        this.SidebarAudioButton.innerHTML = `<i data-lucide="${IconName}"></i>`;
+        this.SidebarAudioButton.title = this.Feedback.Enabled ? 'Mute sound' : 'Unmute sound';
+        if (this.Feedback.Enabled) {
+            this.SidebarAudioButton.classList.remove('ActiveSidebarIcon');
+        } else {
+            this.SidebarAudioButton.classList.add('ActiveSidebarIcon');
+        }
+        this.RefreshIcons();
+    }
+
+    // Cycles the saved games filter across All, Wins, Losses, and Draws.
+    CycleSavedGamesFilter() {
+        // Advances GameFilterIndex, updates the filter button state, and re-renders the list.
+        this.GameFilterIndex = (this.GameFilterIndex + One) % SidebarFilterModes.length;
+        const ActiveMode = SidebarFilterModes[this.GameFilterIndex];
+        if (this.SidebarFilterButton) {
+            const ModeNames = { all: 'All', Win: 'Wins', Loss: 'Losses', Draw: 'Draws' };
+            this.SidebarFilterButton.title = `Filter games (${ModeNames[ActiveMode]})`;
+            if (ActiveMode === 'all') {
+                this.SidebarFilterButton.classList.remove('ActiveSidebarIcon');
+            } else {
+                this.SidebarFilterButton.classList.add('ActiveSidebarIcon');
+            }
+        }
+        this.RenderSavedGamesSidebar();
+    }
+
     // Toggles the mobile slide-over sidebar drawer open or closed.
     ToggleMobileSidebar() {
         // Opens the drawer if closed, or closes it if already open.
@@ -1566,6 +1673,7 @@ class Controller {
         this.Status.SetMessage(`Reviewing vs ${Record.OpponentLabel} — use arrows or move list.`);
         this.Status.Render(Record);
         this.UpdateEmotiveMood(null);
+        this.UpdateSidebarNavActive('');
         this.RenderSavedGamesSidebar();
         this.RefreshIcons();
     }
@@ -1577,11 +1685,21 @@ class Controller {
             return;
         }
         this.SavedGamesListBox.innerHTML = '';
-        const Games = this.Store.LoadGames();
+        const ActiveFilter = SidebarFilterModes[this.GameFilterIndex] || 'all';
+        if (this.SidebarGamesLabel) {
+            const LabelMap = { all: 'Your Games', Win: 'Your Games · Wins', Loss: 'Your Games · Losses', Draw: 'Your Games · Draws' };
+            this.SidebarGamesLabel.textContent = LabelMap[ActiveFilter] || 'Your Games';
+        }
+        const AllGames = this.Store.LoadGames();
+        const Games = ActiveFilter === 'all'
+            ? AllGames
+            : AllGames.filter((Item) => this.ClassifySavedOutcome(Item).Label === ActiveFilter);
         if (Games.length === Zero) {
             const Empty = document.createElement('div');
             Empty.className = 'SavedGamesEmpty';
-            Empty.textContent = 'No games played yet. Start a match to archive it here.';
+            Empty.textContent = ActiveFilter === 'all'
+                ? 'No games played yet. Start a match to archive it here.'
+                : `No ${ActiveFilter.toLowerCase()} games found.`;
             this.SavedGamesListBox.appendChild(Empty);
             return;
         }
@@ -2074,6 +2192,7 @@ class Controller {
             this.PuzzleBox.classList.remove('Hidden');
         }
         this.Status.SetRoomCode('');
+        this.UpdateSidebarNavActive(IsDaily ? 'daily' : 'random');
         const Puzzle = this.Puzzles.FetchPuzzle(IsDaily);
         if (!Puzzle) {
             return;

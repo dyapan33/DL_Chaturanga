@@ -20,24 +20,43 @@
         <aside id="AppSidebar" class="AppSidebar">
             <div class="SidebarHeader">
                 <h1 id="SidebarLogo" class="SidebarLogo">Valex Chess</h1>
-                <button id="SidebarCloseButton" class="SidebarCloseButton" type="button" aria-label="Close menu">
-                    <i data-lucide="x"></i>
-                </button>
+                <div class="SidebarToolbar">
+                    <button id="SidebarCloseButton" class="SidebarIconButton" type="button" title="Close sidebar" aria-label="Close sidebar">
+                        <i data-lucide="panel-left-close"></i>
+                    </button>
+                    <button id="SidebarAudioButton" class="SidebarIconButton" type="button" title="Toggle sound" aria-label="Toggle sound">
+                        <i data-lucide="volume-2"></i>
+                    </button>
+                    <button id="SidebarFilterButton" class="SidebarIconButton" type="button" title="Filter games (All)" aria-label="Filter games">
+                        <i data-lucide="filter"></i>
+                    </button>
+                </div>
             </div>
             <div class="SidebarDivider"></div>
+            <button id="SidebarHomeButton" class="SecondaryButton SidebarActionBtn" type="button">
+                <span class="SidebarActionInner">
+                    <i data-lucide="home"></i>
+                    <span>Home</span>
+                </span>
+            </button>
+            <div class="SidebarDivider"></div>
             <div class="SidebarPuzzleGroup">
-                <button id="SidebarDailyPuzzleButton" class="PrimaryButton SidebarActionBtn" type="button">
-                    <i data-lucide="sparkles"></i>
-                    <span>Daily Puzzle</span>
+                <button id="SidebarDailyPuzzleButton" class="SecondaryButton SidebarActionBtn" type="button">
+                    <span class="SidebarActionInner">
+                        <i data-lucide="sparkles"></i>
+                        <span>Daily Puzzle</span>
+                    </span>
                 </button>
                 <button id="SidebarRandomPuzzleButton" class="SecondaryButton SidebarActionBtn" type="button">
-                    <i data-lucide="puzzle"></i>
-                    <span>Random Puzzle</span>
+                    <span class="SidebarActionInner">
+                        <i data-lucide="puzzle"></i>
+                        <span>Random Puzzle</span>
+                    </span>
                 </button>
             </div>
             <div class="SidebarDivider"></div>
             <div class="SidebarGamesHeader">
-                <span class="SidebarSectionLabel">Your Games</span>
+                <span id="SidebarGamesLabel" class="SidebarSectionLabel">Your Games</span>
             </div>
             <div id="SavedGamesList" class="SavedGamesList"></div>
         </aside>
